@@ -399,6 +399,7 @@ class PermGame(FromPicker):
 
     @bind()
     def pic(self, m):
+        now = datetime.now()
         pic = super(PermGame, self).pic(m, set_msg=False)
         val = m.db.perm_value(pic)
         e = inflect.engine()
@@ -423,7 +424,6 @@ class PermGame(FromPicker):
         msg = '{} {} remaining after this'.format(
             self.remaining, e.plural('image', self.remaining),
         )
-        now = datetime.now()
         self.we_pts = max(self.we_pts, val)
         self.prev_val = max(self.prev_val - 1, val, 1)
         if (self.remaining <= 0 and self.prev_val == 1) or val >= self.you_pts:
