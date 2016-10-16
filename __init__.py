@@ -63,6 +63,8 @@ class Database(database_class):
         for k in KEYS:
             setattr(self, '_{}'.format(k), status[k])
 
+        self.msg = self.check_days()
+
     def exit(self):
         status = {k: getattr(self, '_{}'.format(k)) for k in KEYS}
         with open(self.status_file, 'w') as f:
@@ -143,6 +145,27 @@ class Database(database_class):
         self._points = points
         self._next_mas_add = 0
 
+    def check_days(self):
+        msg = None
+
+        today = date.today()
+        ndays = (today - self._last_checkin).days
+        if self._last_mas == self._last_checkin:
+            ndays -= 1
+        if ndays > 0:
+            old_pts = self.points
+            if self.you_leading:
+                self.update_points(sdelta=2*ndays)
+            else:
+                self.update_points(sdelta=ndays)
+            e = inflect.engine()
+            msg = 'Added for missing {} {}'.format(
+                ndays, e.plural('day', ndays)
+            )
+
+        self._last_checkin = today
+        return msg
+
     def mas(self, skip):
         chg = 0
 
@@ -178,6 +201,9 @@ class MackerelSlideshow(Slideshow):
     def __init__(self, m):
         super(MackerelSlideshow, self).__init__(m, m.db.leader_picker)
         self.update_msg(m)
+
+        if m.db.msg:
+            m.popup_message(m.db.msg)
 
     def make_current(self, m):
         self.picker = m.db.leader_picker
