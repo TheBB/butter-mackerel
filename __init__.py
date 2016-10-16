@@ -447,13 +447,12 @@ class PermGame(FromPicker):
                 self.pic(m)
             return
 
-        msg = '{} {} remaining after this'.format(
-            self.remaining, e.plural('image', self.remaining),
-        )
         self.we_pts = max(self.we_pts, val)
         self.prev_val = max(self.prev_val - 1, val, 1)
         if (self.remaining <= 0 and self.prev_val == 1) or val >= self.you_pts:
-            self.message = msg
+            self.message = '{} {} remaining after this'.format(
+                self.remaining, e.plural('image', self.remaining),
+            )
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
                 '{} – {}'.format(self.we_pts, self.you_pts),
@@ -470,15 +469,19 @@ class PermGame(FromPicker):
             return
         if hasattr(self, 'until') and now < self.until:
             add = int(ceil((self.until - now).total_seconds()))
-            msg += '. Added {} {} (too soon).'.format(add, e.plural('point', add))
+            add_msg = '. Added {} {} (too soon).'.format(add, e.plural('point', add))
             self.remaining += add
             self.total_added += add
         elif hasattr(self, 'before') and now > self.before:
             add = int(ceil((now - self.before).total_seconds()))
-            msg += '. Added {} {} (too late).'.format(add, e.plural('point', add))
+            add_msg = '. Added {} {} (too late).'.format(add, e.plural('point', add))
             self.remaining += add
             self.total_added += add
-        self.message = msg
+        else:
+            add_msg = ''
+        self.message = ('{} {} remaining after this'.format(
+            self.remaining, e.plural('image', self.remaining),
+        ) + add_msg)
 
         m_until, m_before = m.db.perm_margins
         until = self.prev_val - (1.0 - m_until) * sqrt(self.prev_val)
