@@ -451,7 +451,7 @@ class PermGame(FromPicker):
         self.prev_val = max(self.prev_val - 1, val, 1)
         if (self.remaining <= 0 and self.prev_val == 1) or val >= self.you_pts:
             self.message = '{} {} remaining after this'.format(
-                self.remaining, e.plural('image', self.remaining),
+                max(self.remaining, 0), e.plural('image', self.remaining),
             )
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
@@ -480,7 +480,7 @@ class PermGame(FromPicker):
         else:
             add_msg = ''
         self.message = ('{} {} remaining after this'.format(
-            self.remaining, e.plural('image', self.remaining),
+            max(self.remaining, 0), e.plural('image', self.remaining),
         ) + add_msg)
 
         m_until, m_before = m.db.perm_margins
