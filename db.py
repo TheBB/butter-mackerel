@@ -30,6 +30,7 @@ class Database(database_class):
             key: self.picker(val)
             for key, val in cfg['pickers'].items()
         }
+        self.brk = cfg['perm']['break']
 
         if self.remote:
             remote_status = join(self.remote, 'mackerel.yaml')
@@ -96,7 +97,7 @@ class Database(database_class):
 
     def block_until(self, delta=None):
         if delta is None:
-            delta = self.perm_break
+            delta = self.brk
         self._ask_blocked_until = datetime.now() + timedelta(minutes=delta)
 
     def update_points(self, new=None, delta=None, sdelta=None):
