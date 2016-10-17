@@ -45,7 +45,7 @@ class PermGame(FromPicker):
 
         return plus
 
-    def __init__(self, m, timing=False):
+    def __init__(self, m, timing=True):
         cfg = m['mackerel']['perm']
         self.timing = timing
         self.picker_we = m.db.picker(cfg['pickers']['we'])
