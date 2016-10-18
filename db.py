@@ -15,6 +15,7 @@ KEYS = [
     'last_mas',
     'next_mas_add',
     'perm_until',
+    'perm_prob',
     'ask_blocked_until',
 ]
 

@@ -50,6 +50,8 @@ class PermGame(FromPicker):
         self.complete = complete
 
         cfg = m['mackerel']['perm']
+        self.add_loss = cfg['add_loss']
+        self.sub_win = cfg['sub_win']
         self.picker_we = m.db.picker(cfg['pickers']['we'])
         self.picker_you = m.db.picker(cfg['pickers']['you'])
         self.value = lambda pic: pic.eval(cfg['value'])
@@ -59,7 +61,7 @@ class PermGame(FromPicker):
 
         dist_we = sorted([self.value(p) for p in self.picker_we.get_all()])
         dist_you = sorted([self.value(p) for p in self.picker_you.get_all()])
-        self.num_we = PermGame.num_we(dist_we, dist_you, self.remaining, cfg['prob'])
+        self.num_we = PermGame.num_we(dist_we, dist_you, self.remaining, m.db._perm_prob)
 
         self.turn = 'you'
         self.pts = {'you': 0, 'we': 0}
@@ -70,7 +72,8 @@ class PermGame(FromPicker):
         super(PermGame, self).__init__(m, self.picker_you)
 
         m.popup_message(['You get to pick from {}'.format(self.remaining),
-                         'We get to pick from {}'.format(self.num_we)])
+                         'We get to pick from {}'.format(self.num_we),
+                         'Probability {:0.2f}%'.format(m.db._perm_prob * 100)])
         self.pic(m)
 
     @property
@@ -135,6 +138,10 @@ class PermGame(FromPicker):
             done = (self.remaining <= 0 and self.prev_val == 1) or val >= self.pts['you']
         if done:
             granted = self.pts['you'] > self.pts['we']
+            if granted:
+                m.db._perm_prob -= self.sub_win
+            else:
+                m.db._perm_prob += self.add_loss
             self.message = self.msg_remaining
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
