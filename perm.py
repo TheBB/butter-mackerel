@@ -20,34 +20,36 @@ class PermGame(FromPicker):
         you_cumdist = np.zeros((max_num+1,), dtype=float)
         for n, g in groupby(dist_you):
             you_cumdist[n:] += len(list(g)) / len(dist_you)
-        you_cumdist = 1.0 - you_cumdist ** num_you
+        you_cumdist = 1 - you_cumdist ** num_you
 
         we_cumdist = np.zeros((max_num+1,), dtype=float)
         for n, g in groupby(dist_we):
-            we_cumdist[n:] += len(list(g)) / len(dist_you)
+            we_cumdist[n:] += len(list(g)) / len(dist_we)
 
         def prob_you(num_we):
             we = we_cumdist.copy() ** num_we
-            prob = we[0] * you_cumdist[0]
-            prob += sum((we[1:] - we[:-1]) * you_cumdist[1:])
+            we = np.hstack(([0], we))
+            prob = sum((we[1:] - we[:-1]) * you_cumdist)
             return prob
 
         minus, plus = 1, num_you
         while prob_you(plus) > prob:
             minus = plus
             plus *= 2
-        while plus > minus + 1:
-            test = (minus + plus) // 2
+        while plus - minus > 1e-4:
+            test = (minus + plus) / 2
             if prob_you(test) > prob:
                 minus = test
             else:
                 plus = test
 
-        return plus
+        return int(ceil(plus))
 
-    def __init__(self, m, timing=True):
-        cfg = m['mackerel']['perm']
+    def __init__(self, m, timing=True, complete=False):
         self.timing = timing
+        self.complete = complete
+
+        cfg = m['mackerel']['perm']
         self.picker_we = m.db.picker(cfg['pickers']['we'])
         self.picker_you = m.db.picker(cfg['pickers']['you'])
         self.value = lambda pic: pic.eval(cfg['value'])
@@ -127,7 +129,10 @@ class PermGame(FromPicker):
             self.pic_you(m)
             return
 
-        done = (self.remaining <= 0 and self.prev_val == 1) or val >= self.pts['you']
+        if self.complete:
+            done = self.remaining <= 0
+        else:
+            done = (self.remaining <= 0 and self.prev_val == 1) or val >= self.pts['you']
         if done:
             granted = self.pts['you'] > self.pts['we']
             self.message = self.msg_remaining
@@ -142,7 +147,7 @@ class PermGame(FromPicker):
                 m.db.block_until(self.total_added/4)
             else:
                 m.db.block_until(self.brk + self.total_added/4)
-            m.unregister(self, self.turn)
+            m.unregister(self, 'you' if granted else 'we', self.pts['you'], self.pts['we'])
             return
 
         self.prev_val = max(val, self.prev_val - 1, 1)
