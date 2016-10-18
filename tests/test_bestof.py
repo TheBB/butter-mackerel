@@ -28,7 +28,7 @@ class Main(butter.Main):
 if __name__ == '__main__':
     cfg = butter.cfg
     cfg.load_plugins()
-    db = cfg.database(sys.argv[1])
+    db = cfg.database(sys.argv[1], write=False)
     for i in range(100):
         Main(db)
         print(i+1, winners)

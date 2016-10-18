@@ -20,10 +20,11 @@ KEYS = [
 
 class Database(database_class):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, write=True, **kwargs):
         super(Database, self).__init__(*args, **kwargs)
         self.status_file = join(self.path, 'mackerel.yaml')
-        atexit.register(self.exit)
+        if write:
+            atexit.register(self.exit)
 
         cfg = self.cfg['mackerel']
         self.__pickers = {
