@@ -152,6 +152,7 @@ class Database(database_class):
         if self.you_leading and self.points > 0:
             pos = 'You are leading'
             chg = -2 if skip else -1
+            self._last_mas = date.today()
         elif self.you_leading:
             pos = 'Figure out something to do here'
         elif self.we_leading:
