@@ -58,6 +58,7 @@ class PermGame(FromPicker):
         self.remaining = cfg['num']
         self.margins = cfg['margins']
         self.brk = cfg['break']
+        self.penalty = cfg['penalty']
 
         dist_we = sorted([self.value(p) for p in self.picker_we.get_all()])
         dist_you = sorted([self.value(p) for p in self.picker_you.get_all()])
@@ -135,7 +136,7 @@ class PermGame(FromPicker):
         if self.complete:
             done = self.remaining <= 0
         else:
-            done = (self.remaining <= 0 and self.prev_val == 1) or val >= self.pts['you']
+            done = (self.remaining <= 0 and self.prev_val <= 1) or val >= self.pts['you']
         if done:
             granted = self.pts['you'] > self.pts['we']
             if granted:
@@ -159,10 +160,11 @@ class PermGame(FromPicker):
 
         self.prev_val = max(val, self.prev_val - 1, 1)
         add = max(
-            int(ceil((self.until - now).total_seconds())) if hasattr(self, 'until') else 0,
-            int(ceil((now - self.before).total_seconds())) if hasattr(self, 'before') else 0,
-            0,
+            (self.until - now).total_seconds() if hasattr(self, 'until') else 0.0,
+            (now - self.before).total_seconds() if hasattr(self, 'before') else 0.0,
+            0.0,
         )
+        add = int(ceil(add / self.penalty))
         add_msg = ''
         if add > 0:
             add_msg = '. Added {} {}.'.format(add, e.plural('point', add))
