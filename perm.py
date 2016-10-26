@@ -152,9 +152,9 @@ class PermGame(FromPicker):
             ])
             if conf == ret.lower():
                 m.db.give_permission(granted, reduced=min(55, self.total_added/3))
-                m.db.block_until(self.total_added/4)
+                m.db.block_until(self.total_added/8)
             else:
-                m.db.block_until(self.brk + self.total_added/4)
+                m.db.block_until(self.brk + self.total_added/8)
             m.unregister(self, 'you' if granted else 'we', self.pts['you'], self.pts['we'])
             return
 
@@ -177,5 +177,6 @@ class PermGame(FromPicker):
             m_until, m_before = self.margins
             until = self.prev_val - (1.0 - m_until) * sqrt(self.prev_val)
             before = self.prev_val + (m_before - 1.0) * sqrt(self.prev_val)
+            print(until, self.prev_val, before)
             self.until = now + timedelta(seconds=until)
             self.before = now + timedelta(seconds=before)
