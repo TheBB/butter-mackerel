@@ -38,12 +38,13 @@ class MackerelSlideshow(Slideshow):
 
         if m.db.we_leading:
             msg += '. '
+            prob = '{:.2f}%'.format(m.db._perm_prob * 100)
             if m.db.has_perm:
                 msg += 'Permission for {} minutes.'.format(m.db.perm_mins)
             elif m.db.can_ask_perm:
-                msg += 'Can ask permission.'
+                msg += 'Can ask permission ({}).'.format(prob)
             else:
-                msg += 'Can ask permission in {} minutes'.format(m.db.mins_until_can_ask_perm)
+                msg += 'Can ask permission in {} minutes ({}).'.format(m.db.mins_until_can_ask_perm, prob)
 
         self.message = msg
 
