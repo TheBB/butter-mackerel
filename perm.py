@@ -143,6 +143,7 @@ class PermGame(FromPicker):
                 m.db._perm_prob -= self.sub_win
             else:
                 m.db._perm_prob += self.add_loss
+            m.db._perm_prob = max(0.01, min(0.99, m.db._perm_prob))
             self.message = self.msg_remaining
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
