@@ -178,6 +178,5 @@ class PermGame(FromPicker):
             m_until, m_before = self.margins
             until = self.prev_val - (1.0 - m_until) * sqrt(self.prev_val)
             before = self.prev_val + (m_before - 1.0) * sqrt(self.prev_val)
-            print(until, self.prev_val, before)
             self.until = now + timedelta(seconds=until)
             self.before = now + timedelta(seconds=before)
