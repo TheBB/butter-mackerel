@@ -120,7 +120,7 @@ class Database(database_class):
             points += self._streak * (self._streak + 1) // 2
             self._streak += 1
         else:
-            self._streak = 0
+            self._streak = 1
         self._leader = leader
         self._points = points
         self._next_mas_add = 0
