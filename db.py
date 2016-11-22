@@ -116,11 +116,16 @@ class Database(database_class):
 
     def update_points_leader(self, leader, points):
         assert leader in {'we', 'you'}
-        if self.leader == leader:
+        if self.leader == leader == 'we':
             points += self._streak * (self._streak + 1) // 2
             self._streak += 1
+        elif self.leader == leader == 'you':
+            self._streak += 1
+            points = self._streak
         else:
             self._streak = 1
+            if leader == 'you':
+                points = 1
         self._leader = leader
         self._points = points
         self._next_mas_add = 0
