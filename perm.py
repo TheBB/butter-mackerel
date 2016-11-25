@@ -51,7 +51,6 @@ class PermGame(FromPicker):
 
         cfg = m['mackerel']['perm']
         self.add_loss = cfg['add_loss']
-        self.sub_win = cfg['sub_win']
         self.picker_we = m.db.picker(cfg['pickers']['we'])
         self.picker_you = m.db.picker(cfg['pickers']['you'])
         self.value = lambda pic: pic.eval(cfg['value'])
@@ -59,6 +58,10 @@ class PermGame(FromPicker):
         self.margins = cfg['margins']
         self.brk = cfg['break']
         self.penalty = cfg['penalty']
+
+        self.sub_win = (1/cfg['winrate'] - 1) * self.add_loss
+        sq = cfg['winrate'] + (2*cfg['qualrate'] - 1) * self.sub_win / 2
+        self.qualified = m.db._perm_prob < sq
 
         dist_we = sorted([self.value(p) for p in self.picker_we.get_all()])
         dist_you = sorted([self.value(p) for p in self.picker_you.get_all()])
@@ -74,7 +77,13 @@ class PermGame(FromPicker):
 
         m.popup_message(['You get to pick from {}'.format(self.remaining),
                          'We get to pick from {}'.format(self.num_we),
-                         'Probability {:0.2f}%'.format(m.db._perm_prob * 100)])
+                         'Probability {:0.2f}%'.format(m.db._perm_prob * 100),
+                         'Qualified' if self.qualified else 'Not qualified',
+                         '(Threshold {:0.2f}%)'.format(sq * 100),
+                         'Next: {:0.2f}% or {:0.2f}%'.format(
+                             (m.db._perm_prob - self.sub_win) * 100,
+                             (m.db._perm_prob + self.add_loss) * 100
+                         )])
         self.pic(m)
 
     @property
@@ -144,11 +153,13 @@ class PermGame(FromPicker):
             else:
                 m.db._perm_prob += self.add_loss
             m.db._perm_prob = max(0.01, min(0.99, m.db._perm_prob))
+            granted = granted and self.qualified
             self.message = self.msg_remaining
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
                 '{} – {}'.format(self.pts['we'], self.pts['you']),
                 'Permission {}'.format('granted' if granted else 'denied'),
+                'Qualified' if self.qualified else 'Not qualified',
                 'Confirm with {}'.format(conf.upper()),
             ])
             if conf == ret.lower():
