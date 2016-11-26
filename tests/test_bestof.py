@@ -27,7 +27,7 @@ class Main(butter.Main):
 
 if __name__ == '__main__':
     cfg = butter.cfg
-    cfg.load_plugins()
+    cfg.load_plugin('mackerel')
     db = cfg.database(sys.argv[1], write=False)
     for i in range(100):
         Main(db)
