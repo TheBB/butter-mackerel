@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, date
 from itertools import groupby
-from math import ceil, sqrt
+from math import ceil, floor, sqrt
 from random import choice
+from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import lsqr
 from string import ascii_lowercase
 
 import inflect
@@ -45,12 +47,55 @@ class PermGame(FromPicker):
 
         return int(ceil(plus))
 
+    @staticmethod
+    def winrate(D, U, Q, N=5000):
+        ri, ci, data = [], [], []
+
+        for i in range(0, N+1):
+            ri.append(max(i-D, 0))
+            ci.append(i)
+            data.append(i/N)
+
+            ri.append(i)
+            ci.append(i)
+            data.append(-1)
+
+            ri.append(min(i+U, N))
+            ci.append(i)
+            data.append(1-i/N)
+
+            ri.append(N+1)
+            ci.append(i)
+            data.append(1)
+
+        mx = csc_matrix((data, (ri, ci)), shape=(N+2, N+1))
+        dist, *_ = lsqr(mx, np.hstack((np.zeros(N+1), 1)))
+        return sum(i/N * d for i, d in enumerate(dist[:Q]))
+
+    @staticmethod
+    def find_U_and_threshold(down, rrate, wrate, N=5000):
+        D = int(floor(N*down))
+        U = int(ceil(rrate / (1 - rrate) * D))
+
+        Qmin = 0
+        Qmax = N
+
+        while Qmax - Qmin > 1:
+            Q = Qmin + (Qmax - Qmin) // 2
+            c_wrate = PermGame.winrate(D, U, Q, N)
+            if c_wrate < wrate:
+                Qmin = Q
+            else:
+                Qmax = Q
+
+        return U/N, Qmin/N
+
     def __init__(self, m, timing=True, complete=False):
         self.timing = timing
         self.complete = complete
 
         cfg = m['mackerel']['perm']
-        self.add_loss = cfg['add_loss']
+        self.sub_win = cfg['sub_win']
         self.picker_we = m.db.picker(cfg['pickers']['we'])
         self.picker_you = m.db.picker(cfg['pickers']['you'])
         self.value = lambda pic: pic.eval(cfg['value'])
@@ -59,8 +104,7 @@ class PermGame(FromPicker):
         self.brk = cfg['break']
         self.penalty = cfg['penalty']
 
-        self.sub_win = (1/cfg['winrate'] - 1) * self.add_loss
-        sq = cfg['winrate'] + (2*cfg['qualrate'] - 1) * self.sub_win / 2
+        self.add_loss, sq = PermGame.find_U_and_threshold(self.sub_win, cfg['redrate'], cfg['winrate'])
         self.qualified = m.db._perm_prob < sq
 
         dist_we = sorted([self.value(p) for p in self.picker_we.get_all()])
