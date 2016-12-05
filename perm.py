@@ -208,9 +208,9 @@ class PermGame(FromPicker):
             ])
             if conf == ret.lower():
                 m.db.give_permission(granted, reduced=min(55, self.total_added/3))
-                m.db.block_until(self.total_added/8)
+                m.db.block_until(self.total_added/5)
             else:
-                m.db.block_until(self.brk + self.total_added/8)
+                m.db.block_until(self.brk + self.total_added/5)
             m.unregister(self, 'you' if granted else 'we', self.pts['you'], self.pts['we'])
             return
 
