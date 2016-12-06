@@ -164,7 +164,7 @@ class PermGame(FromPicker):
         else:
             done = (self.remaining <= 0 and self.prev_val <= 1) or val >= self.threshold
         if done:
-            granted = self.pts <= self.threshold
+            granted = self.pts < self.threshold
             if granted:
                 m.db._perm_prob -= self.sub_win
             else:
