@@ -96,10 +96,7 @@ class PermGame(FromPicker):
 
         cfg = m['mackerel']['perm']
         self.sub_win = cfg['sub_win']
-        self.picker_we = m.db.picker(cfg['pickers']['we'])
-        self.picker_you = m.db.picker(cfg['pickers']['you'])
         self.value = lambda pic: pic.eval(cfg['value'])
-        self.remaining = cfg['num']
         self.margins = cfg['margins']
         self.brk = cfg['break']
         self.penalty = cfg['penalty']
@@ -107,20 +104,22 @@ class PermGame(FromPicker):
         self.add_loss, sq = PermGame.find_U_and_threshold(self.sub_win, cfg['redrate'], cfg['winrate'])
         self.qualified = m.db._perm_prob < sq
 
-        dist_we = sorted([self.value(p) for p in self.picker_we.get_all()])
-        dist_you = sorted([self.value(p) for p in self.picker_you.get_all()])
-        self.num_we = PermGame.num_we(dist_we, dist_you, self.remaining, m.db._perm_prob)
+        picker_we = m.db.picker(cfg['pickers']['we'])
+        picker_you = m.db.picker(cfg['pickers']['you'])
+        dist_we = sorted([self.value(p) for p in picker_we.get_all()])
+        dist_you = sorted([self.value(p) for p in picker_you.get_all()])
+        self.remaining = PermGame.num_we(dist_we, dist_you, cfg['num'], m.db._perm_prob)
 
-        self.turn = 'you'
-        self.pts = {'you': 0, 'we': 0}
+        self.threshold = max(self.value(picker_you.get()) for _ in range(cfg['num']))
         self.total_added = 0
         self.prev_val = 0
+        self.pts = 0
 
         m.db.block_until()
-        super(PermGame, self).__init__(m, self.picker_you)
+        super(PermGame, self).__init__(m, picker_we)
 
-        m.popup_message(['You get to pick from {}'.format(self.remaining),
-                         'We get to pick from {}'.format(self.num_we),
+        m.popup_message(['You pick {}'.format(self.threshold),
+                         'We get to pick from {}'.format(self.remaining),
                          'Probability {:0.2f}%'.format(m.db._perm_prob * 100),
                          'Qualified' if self.qualified else 'Not qualified',
                          '(Threshold {:0.2f}%)'.format(sq * 100),
@@ -135,23 +134,10 @@ class PermGame(FromPicker):
         return next(iter({'we', 'you'} - {self.turn}))
 
     @property
-    def your_turn(self):
-        return self.turn == 'you'
-
-    @property
-    def our_turn(self):
-        return self.turn == 'we'
-
-    @property
     def msg_remaining(self):
         return '{} {} remaining after this'.format(
             max(self.remaining, 0), e.plural('image', self.remaining)
         )
-
-    @property
-    def msg_pts(self):
-        pts = self.pts[self.turn]
-        return '{} {} so far'.format(pts, e.plural('point', pts))
 
     def pause(self, m):
         now = datetime.now()
@@ -165,33 +151,20 @@ class PermGame(FromPicker):
             self.until = now + self.delta_until
             self.before = now + self.delta_before
 
-    def pic_you(self, m):
-        self.message = ', '.join((self.msg_remaining, self.msg_pts))
-        if self.remaining == 0:
-            m.popup_message('You pick {}, our turn'.format(self.msg_pts))
-            self.remaining = self.num_we
-            self.picker = self.picker_we
-            self.turn = 'we'
-            self.pic(m)
-
     @bind()
     def pic(self, m):
         now = datetime.now()
         pic = super(PermGame, self).pic(m, set_msg=False)
         val = self.value(pic)
-        self.pts[self.turn] = max(self.pts[self.turn], val)
+        self.pts = max(self.pts, val)
         self.remaining -= 1
-
-        if self.your_turn:
-            self.pic_you(m)
-            return
 
         if self.complete:
             done = self.remaining <= 0
         else:
-            done = (self.remaining <= 0 and self.prev_val <= 1) or val >= self.pts['you']
+            done = (self.remaining <= 0 and self.prev_val <= 1) or val >= self.threshold
         if done:
-            granted = self.pts['you'] > self.pts['we']
+            granted = self.pts <= self.threshold
             if granted:
                 m.db._perm_prob -= self.sub_win
             else:
@@ -201,7 +174,7 @@ class PermGame(FromPicker):
             self.message = self.msg_remaining
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
-                '{} – {}'.format(self.pts['we'], self.pts['you']),
+                '{} – {}'.format(self.pts, self.threshold),
                 'Permission {}'.format('granted' if granted else 'denied'),
                 'Qualified' if self.qualified else 'Not qualified',
                 'Confirm with {}'.format(conf.upper()),
@@ -211,7 +184,7 @@ class PermGame(FromPicker):
                 m.db.block_until(self.total_added/5)
             else:
                 m.db.block_until(self.brk + self.total_added/5)
-            m.unregister(self, 'you' if granted else 'we', self.pts['you'], self.pts['we'])
+            m.unregister(self, 'you' if granted else 'we', self.threshold, self.pts)
             return
 
         self.prev_val = max(val, self.prev_val - 1, 1)
