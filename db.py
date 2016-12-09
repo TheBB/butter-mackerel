@@ -120,8 +120,8 @@ class Database(database_class):
             points += self._streak * (self._streak + 1) // 2
             self._streak += 1
         elif self.leader == leader == 'you':
+            points = self._streak * (self._streak + 1) // 2
             self._streak += 1
-            points = self._streak
         else:
             self._streak = 1
             if leader == 'you':
