@@ -46,6 +46,11 @@ class MackerelSlideshow(Slideshow):
             else:
                 msg += 'Can ask permission in {} minutes ({}).'.format(m.db.mins_until_can_ask_perm, prob)
 
+            if not m.db.has_perm:
+                to_add = m.db.add_num - m.db._added
+                msg += ' (To add: {})'.format(to_add)
+
+
         self.message = msg
 
     @bind('m')

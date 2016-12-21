@@ -1,7 +1,6 @@
-import atexit
 from datetime import datetime, timedelta, date
 from os.path import join
-from butter.db import database_class, rsync_file
+from butter.db import database_class, loader_class, rsync_file
 
 import inflect
 import yaml
@@ -17,15 +16,23 @@ KEYS = [
     'perm_until',
     'perm_prob',
     'ask_blocked_until',
+    'added',
 ]
+
+
+class DatabaseLoader(loader_class):
+
+    def add_pic(self, fn, pic, db):
+        super(DatabaseLoader, self).add_pic(fn, pic, db)
+        db.pic_add_hook(pic)
+
 
 class Database(database_class):
 
     def __init__(self, *args, write=True, **kwargs):
         super(Database, self).__init__(*args, **kwargs)
         self.status_file = join(self.path, 'mackerel.yaml')
-        if write:
-            atexit.register(self.exit)
+        self.write = write
 
         cfg = self.cfg['mackerel']
         self.__pickers = {
@@ -33,6 +40,8 @@ class Database(database_class):
             for key, val in cfg['pickers'].items()
         }
         self.brk = cfg['perm']['break']
+        self.add_cond = lambda pic: pic.eval(cfg['perm']['add_cond'])
+        self.add_num = cfg['perm']['add_num']
 
         if self.remote:
             remote_status = join(self.remote, 'mackerel.yaml')
@@ -45,7 +54,11 @@ class Database(database_class):
 
         self.msg = self.check_days()
 
-    def exit(self):
+    def close(self):
+        super(Database, self).close()
+        if not self.write:
+            return
+
         status = {k: getattr(self, '_{}'.format(k)) for k in KEYS}
         with open(self.status_file, 'w') as f:
             yaml.dump(status, f, default_flow_style=False)
@@ -92,6 +105,13 @@ class Database(database_class):
     @property
     def mins_until_can_ask_perm(self):
         return (self._ask_blocked_until - datetime.now()).seconds // 60 + 1
+
+    def pic_add_hook(self, pic):
+        if self.leader == 'we' and self.add_cond(pic):
+            self._added += 1
+            if self._added == self.add_num:
+                self._added -= self.add_num
+                self.give_permission(True)
 
     def give_permission(self, permission, reduced=0):
         if permission:
