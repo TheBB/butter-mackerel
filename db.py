@@ -123,6 +123,7 @@ class Database(database_class):
             self._streak += 1
             points = self._streak * (self._streak + 1) // 2
         else:
+            self._last_mas = date.today()
             self._streak = 1
             if leader == 'you':
                 points = 1
