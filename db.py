@@ -17,6 +17,7 @@ KEYS = [
     'perm_prob',
     'ask_blocked_until',
     'added',
+    'bias',
 ]
 
 
@@ -43,9 +44,9 @@ class Database(database_class):
         self.add_cond = lambda pic: pic.eval(cfg['perm']['add_cond'])
         self.add_num = cfg['perm']['add_num']
 
-        if self.remote:
-            remote_status = join(self.remote, 'mackerel.yaml')
-            rsync_file(remote_status, self.status_file)
+        # if self.remote:
+        #     remote_status = join(self.remote, 'mackerel.yaml')
+        #     rsync_file(remote_status, self.status_file)
 
         with open(self.status_file, 'r') as f:
             status = yaml.load(f)
@@ -68,7 +69,10 @@ class Database(database_class):
 
     @property
     def leader_picker(self):
-        return self.__pickers[self.leader]
+        return self.get_picker(self.leader)
+
+    def get_picker(self, key):
+        return self.__pickers[key]
 
     @property
     def leader(self):

@@ -17,6 +17,7 @@ class Main(butter.Main):
         super(Main, self).__init__(db)
 
         prog = BestOfGame(self)
+        prog.speed = 1.0
         while self.program:
             prog.pic(self)
 
@@ -28,7 +29,7 @@ class Main(butter.Main):
 if __name__ == '__main__':
     cfg = butter.cfg
     cfg.load_plugin('mackerel')
-    db = cfg.database(sys.argv[1], write=False)
-    for i in range(100):
-        Main(db)
-        print(i+1, winners)
+    with cfg.database(sys.argv[1], write=False) as db:
+        for i in range(200):
+            Main(db)
+            print(i+1, winners, db._bias)

@@ -9,17 +9,16 @@ class BestOfGame(FromPicker):
 
     def __init__(self, m):
         cfg = m['mackerel']['bestof']
-        super(BestOfGame, self).__init__(m, m.db.picker(cfg['picker']))
+        super(BestOfGame, self).__init__(m, None)
 
         self.trigger = lambda pic: pic.eval(cfg['trigger'])
         self.value = lambda pic: pic.eval(cfg['value'])
+        self.speed = cfg['speed']
 
         self.pts = {'we': [0, 0, 0], 'you': [0, 0, 0]}
         self.max_pts = [5, 5, 10]
         self.current = choice(('we', 'you'))
         self.prev_winner = None
-        self.speed = 0.55
-        self.bias = 0.0
         self.done = False
 
         self.update_msg(m)
@@ -32,6 +31,7 @@ class BestOfGame(FromPicker):
     def add_pts(self, winner, npts):
         l_pts = self.pts[self.other(winner)]
         w_pts = self.pts[winner]
+        lost = 0
         while npts > 0 and w_pts[-1] < self.max_pts[-1]:
             i = 0
             w_pts[i] += 1
@@ -39,61 +39,55 @@ class BestOfGame(FromPicker):
                 if i == len(self.max_pts) - 1:
                     break
                 w_pts[i+1] += 1
+
+                l = l_pts[i]
+                for j in range(0, i):
+                    l *= self.max_pts[j]
+                lost += l
+
                 w_pts[i] = l_pts[i] = 0
                 i += 1
             npts -= 1
 
+        return lost
+
     @bind()
     def pic(self, m):
-        cur = self.current
         p = lambda b: max(min((1.020**b) / (1.020**b + 1), 0.93), 0.07)
-        conv = lambda p: self.speed * p
-        threshold = conv(p(self.bias) if cur == 'we' else 1 - p(self.bias))
-        win = random() <= threshold
-        pic = self.picker.get()
+        current = 'we' if random() <= p(m.db._bias) else 'you'
+        win = random() <= self.speed
+        pic = m.db.get_picker(current).get()
         while self.trigger(pic) != win:
-            pic = self.picker.get()
+            pic = m.db.get_picker(current).get()
 
-        pic = super(BestOfGame, self).pic(m, set_msg=False, pic=pic)
+        super(BestOfGame, self).pic(m, set_msg=False, pic=pic)
 
         if not win:
-            self.current = self.other(cur)
             return
 
         npts = self.value(pic)
-        self.add_pts(cur, npts)
+        lost = self.add_pts(current, npts)
         self.update_msg(m)
         e = inflect.engine()
 
-        if self.pts[cur][-1] == self.max_pts[-1]:
-            total = self.max_pts[-1] - self.pts[self.other(cur)][-1]
+        if self.pts[current][-1] == self.max_pts[-1]:
+            total = self.max_pts[-1] - self.pts[self.other(current)][-1]
             msg = '{} win with {} {}'.format(
-                cur.title(), total, e.plural('point', total)
+                current.title(), total, e.plural('point', total)
             )
             m.popup_message(msg)
-            m.db.update_points_leader(cur, total)
-            m.unregister(self, cur)
+            m.db.update_points_leader(current, total)
+            m.unregister(self, current)
             return
 
-        sign = 1 if cur == 'we' else -1
-        if self.prev_winner != cur:
-            self.bias = 0.0
-        else:
-            self.bias += sign * min(npts, 15)
+        sign = 1 if current == 'we' else -1
+        m.db._bias -= sign * min(npts, 15)
+        # m.db._bias += sign * lost
 
         msg = ['{} {} for {}'.format(npts, e.plural('point', npts),
-                                     'us' if cur == 'we' else 'you')]
-
-        p_t, p_f = conv(p(self.bias)), conv(1 - p(self.bias))
-        denom = p_t + p_f - p_t * p_f
-        if cur == 'we':
-            p_t /= denom
-        else:
-            p_t = 1 - p_f / denom
-        p_f = 1 - p_t
-        msg.append('{:.2f}% – {:.2f}%'.format(p_t*100, p_f*100))
-
-        self.prev_winner = cur
+                                     'us' if current == 'we' else 'you')]
+        msg.append('{:.2f}%'.format(p(m.db._bias) * 100))
+        msg.append('{} points were lost'.format(lost))
 
         self.update_msg(m)
         m.popup_message(msg)
