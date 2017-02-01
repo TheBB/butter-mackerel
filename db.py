@@ -107,7 +107,7 @@ class Database(database_class):
     def pic_add_hook(self, pic):
         if self.leader == 'we' and self.add_cond(pic):
             self._added += 1
-            if self._added == self.add_num:
+            if self._added >= self.add_num:
                 self._added -= self.add_num
                 self.give_permission(True)
 
