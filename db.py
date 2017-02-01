@@ -10,8 +10,6 @@ KEYS = [
     'leader',
     'points',
     'streak',
-    'last_checkin',
-    'last_mas',
     'next_mas_add',
     'perm_until',
     'perm_prob',
@@ -52,7 +50,7 @@ class Database(database_class):
         for k in KEYS:
             setattr(self, '_{}'.format(k), status[k])
 
-        self.msg = self.check_days()
+        self.msg = None
 
     def close(self):
         super(Database, self).close()
@@ -143,7 +141,6 @@ class Database(database_class):
             self._streak += 1
             points = self._streak * (self._streak + 1) // 2
         else:
-            self._last_mas = date.today()
             self._streak = 1
             if leader == 'you':
                 points = 1
@@ -151,34 +148,12 @@ class Database(database_class):
         self._points = points
         self._next_mas_add = 0
 
-    def check_days(self):
-        msg = None
-
-        today = date.today()
-        ndays = (today - self._last_checkin).days
-        if self._last_mas == self._last_checkin:
-            ndays -= 1
-        if ndays > 0:
-            old_pts = self.points
-            if self.you_leading:
-                self.update_points(sdelta=2*ndays)
-            else:
-                self.update_points(sdelta=ndays)
-            e = inflect.engine()
-            msg = 'Added for missing {} {}'.format(
-                ndays, e.plural('day', ndays)
-            )
-
-        self._last_checkin = today
-        return msg
-
     def mas(self, skip):
         chg = 0
 
         if self.you_leading and self.points > 0:
             pos = 'You are leading'
             chg = -2 if skip else -1
-            self._last_mas = date.today()
         elif self.you_leading:
             pos = 'Figure out something to do here'
         elif self.we_leading:
@@ -188,7 +163,6 @@ class Database(database_class):
                 if not skip:
                     self._next_mas_add += 1
                 self._perm_until = datetime.now() - timedelta(hours=2)
-                self._last_mas = date.today()
             elif not skip:
                 pos = "You don't have permission"
                 chg = 2 * (self._next_mas_add + 1)
