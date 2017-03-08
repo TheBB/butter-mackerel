@@ -10,7 +10,6 @@ KEYS = [
     'leader',
     'points',
     'streak',
-    'next_mas_add',
     'perm_until',
     'perm_prob',
     'ask_blocked_until',
@@ -146,7 +145,6 @@ class Database(database_class):
                 points = 1
         self._leader = leader
         self._points = points
-        self._next_mas_add = 0
 
     def mas(self, skip):
         chg = 0
@@ -159,15 +157,12 @@ class Database(database_class):
         elif self.we_leading:
             if self._perm_until >= datetime.now():
                 pos = 'You have permission'
-                chg = -1 if skip else self._next_mas_add
-                if not skip:
-                    self._next_mas_add += 1
+                chg = -1 if skip else 0
                 self._perm_until = datetime.now() - timedelta(hours=2)
             elif not skip:
                 pos = "You don't have permission"
-                chg = 2 * (self._next_mas_add + 1)
+                chg = 2
                 self._ask_blocked_until = datetime.now() + timedelta(hours=1)
-                self._next_mas_add += 1
             else:
                 return "That doesn't make sense"
 
