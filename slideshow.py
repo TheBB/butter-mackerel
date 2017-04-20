@@ -1,9 +1,20 @@
+from datetime import datetime, timedelta, date
 import inflect
+import numpy as np
+from random import random
+from string import ascii_lowercase
 
 from butter.programs import bind, Slideshow
 
 from mackerel.bestof import BestOfGame
-from mackerel.perm import PermGame
+
+
+def prob(secs, threshold, limit, spread):
+    secs = (secs - threshold) / spread
+    h = lambda x: np.exp(-1/x) if x > 0 else 0
+    g = h(secs) / (h(secs) + h(1-secs))
+    g *= np.arctan(secs) / np.pi + 1/2
+    return g * limit
 
 
 class MackerelSlideshow(Slideshow):
@@ -23,6 +34,19 @@ class MackerelSlideshow(Slideshow):
     def pic(self, m):
         super(MackerelSlideshow, self).pic(m, set_msg=False)
         self.update_msg(m)
+        if hasattr(self, 'previous') and not m.db.has_perm:
+            dt = (datetime.now() - self.previous).total_seconds()
+            cfg = m['mackerel']['perm']
+            p = prob(dt, cfg['threshold'], cfg['limit'], cfg['spread'])
+            print(p)
+            if random() < p:
+                conf = choice(ascii_lowercase)
+                ret = m.popup_message([
+                    'Permission available, confirm with {}'.format(conf.upper()),
+                ])
+                if conf == ret.lower():
+                    m.db.give_permission(True)
+        self.previous = datetime.now()
 
     def update_msg(self, m):
         if m.db.leader == 'none':
@@ -38,18 +62,11 @@ class MackerelSlideshow(Slideshow):
 
         if m.db.we_leading:
             msg += '. '
-            prob = '{:.2f}%'.format(m.db._perm_prob * 100)
             if m.db.has_perm:
                 msg += 'Permission for {} minutes.'.format(m.db.perm_mins)
-            elif m.db.can_ask_perm:
-                msg += 'Can ask permission ({}).'.format(prob)
             else:
-                msg += 'Can ask permission in {} minutes ({}).'.format(m.db.mins_until_can_ask_perm, prob)
-
-            if not m.db.has_perm:
                 to_add = m.db.add_num - m.db._added
                 msg += ' (To add: {})'.format(to_add)
-
 
         self.message = msg
 
@@ -67,8 +84,6 @@ class MackerelSlideshow(Slideshow):
     def game(self, m):
         if m.db.points == 0:
             BestOfGame(m)
-        elif m.db.we_leading and m.db.can_ask_perm:
-            PermGame(m)
         else:
             m.popup_message('Nothing to do')
 

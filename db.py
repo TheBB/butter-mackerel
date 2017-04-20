@@ -12,7 +12,6 @@ KEYS = [
     'streak',
     'perm_until',
     'perm_prob',
-    'ask_blocked_until',
     'added',
 ]
 
@@ -36,7 +35,6 @@ class Database(database_class):
             key: self.picker(val)
             for key, val in cfg['pickers'].items()
         }
-        self.brk = cfg['perm']['break']
         self.add_cond = lambda pic: pic.eval(cfg['perm']['add_cond'])
         self.add_num = cfg['perm']['add_num']
 
@@ -95,14 +93,6 @@ class Database(database_class):
     def perm_mins(self):
         return (self._perm_until - datetime.now()).seconds // 60
 
-    @property
-    def can_ask_perm(self):
-        return self._ask_blocked_until <= datetime.now()
-
-    @property
-    def mins_until_can_ask_perm(self):
-        return (self._ask_blocked_until - datetime.now()).seconds // 60 + 1
-
     def pic_add_hook(self, pic):
         if self.leader == 'we' and self.add_cond(pic):
             self._added += 1
@@ -113,11 +103,6 @@ class Database(database_class):
     def give_permission(self, permission, reduced=0):
         if permission:
             self._perm_until = datetime.now() + timedelta(minutes=60-reduced)
-
-    def block_until(self, delta=None):
-        if delta is None:
-            delta = self.brk
-        self._ask_blocked_until = datetime.now() + timedelta(minutes=delta)
 
     def update_points(self, new=None, delta=None, sdelta=None):
         if new is not None:
@@ -162,7 +147,6 @@ class Database(database_class):
             elif not skip:
                 pos = "You don't have permission"
                 chg = 2
-                self._ask_blocked_until = datetime.now() + timedelta(hours=1)
             else:
                 return "That doesn't make sense"
 
