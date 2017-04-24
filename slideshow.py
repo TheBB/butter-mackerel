@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, date
 import inflect
 import numpy as np
-from random import random
+from random import choice, random
 from string import ascii_lowercase
 
 from butter.programs import bind, Slideshow
@@ -40,12 +40,14 @@ class MackerelSlideshow(Slideshow):
             p = prob(dt, cfg['threshold'], cfg['limit'], cfg['spread'])
             print(p)
             if random() < p:
+                print('Yay')
                 conf = choice(ascii_lowercase)
                 ret = m.popup_message([
                     'Permission available, confirm with {}'.format(conf.upper()),
                 ])
                 if conf == ret.lower():
                     m.db.give_permission(True)
+                    self.update_msg(m)
         self.previous = datetime.now()
 
     def update_msg(self, m):
