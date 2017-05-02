@@ -11,7 +11,7 @@ KEYS = [
     'points',
     'streak',
     'perm_until',
-    'perm_prob',
+    'perm_value',
     'added',
 ]
 
@@ -31,16 +31,17 @@ class Database(database_class):
         self.write = write
 
         cfg = self.cfg['mackerel']
-        self.__pickers = {
+        self._pickers = {
             key: self.picker(val)
             for key, val in cfg['pickers'].items()
         }
         self.add_cond = lambda pic: pic.eval(cfg['perm']['add_cond'])
         self.add_num = cfg['perm']['add_num']
+        self.sub_value = lambda pic: pic.eval(cfg['perm']['sub_value'])
 
-        if self.remote:
-            remote_status = join(self.remote, 'mackerel.yaml')
-            rsync_file(remote_status, self.status_file)
+        # if self.remote:
+        #     remote_status = join(self.remote, 'mackerel.yaml')
+        #     rsync_file(remote_status, self.status_file)
 
         with open(self.status_file, 'r') as f:
             status = yaml.load(f)
@@ -63,7 +64,7 @@ class Database(database_class):
 
     @property
     def leader_picker(self):
-        return self.__pickers[self.leader]
+        return self._pickers[self.leader]
 
     @property
     def leader(self):
