@@ -18,10 +18,12 @@ def add_value(secs, threshold, limit, spread):
 
 
 def try_perm(pic, db, cfg, dt):
+    if db.has_perm:
+        return False
     val = db.sub_value(pic)
     if val > 0:
         db._perm_value -= val * cfg['sub_mult']
-    elif dt and not db.has_perm:
+    elif dt:
         add = add_value(dt, cfg['threshold'], cfg['limit'], cfg['spread'])
         prob = min(add, cfg['perm_prob'])
         if db._perm_value < 0.0:
