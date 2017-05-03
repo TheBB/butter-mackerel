@@ -51,8 +51,10 @@ class MackerelSlideshow(Slideshow):
         if not m.db.we_leading:
             self.update_msg(m)
             return
-        if self.previous and try_perm(pic, m.db, m['mackerel']['perm'],
-                                      (datetime.now() - self.previous).total_seconds()):
+        dt = None
+        if self.previous:
+            dt = (datetime.now() - self.previous).total_seconds()
+        if try_perm(pic, m.db, m['mackerel']['perm'], dt):
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
                 'Permission available, confirm with {}'.format(conf.upper()),

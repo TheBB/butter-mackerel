@@ -39,9 +39,9 @@ class Database(database_class):
         self.add_num = cfg['perm']['add_num']
         self.sub_value = lambda pic: pic.eval(cfg['perm']['sub_value'])
 
-        # if self.remote:
-        #     remote_status = join(self.remote, 'mackerel.yaml')
-        #     rsync_file(remote_status, self.status_file)
+        if self.remote:
+            remote_status = join(self.remote, 'mackerel.yaml')
+            rsync_file(remote_status, self.status_file)
 
         with open(self.status_file, 'r') as f:
             status = yaml.load(f)
