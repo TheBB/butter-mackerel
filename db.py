@@ -95,7 +95,7 @@ class Database(database_class):
         return (self._perm_until - datetime.now()).seconds // 60
 
     def pic_add_hook(self, pic):
-        if self.leader == 'we' and self.add_cond(pic):
+        if self.leader == 'we' and self.add_cond(pic) and self._perm_value >= 0.0:
             self._added += 1
             if self._added >= self.add_num:
                 self._added -= self.add_num
