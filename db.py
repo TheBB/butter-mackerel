@@ -13,6 +13,7 @@ KEYS = [
     'perm_until',
     'perm_value',
     'added',
+    'last_checkin',
 ]
 
 
@@ -26,6 +27,7 @@ class DatabaseLoader(loader_class):
 class Database(database_class):
 
     def __init__(self, *args, write=True, **kwargs):
+        self.regular = kwargs['regular']
         super(Database, self).__init__(*args, **kwargs)
         self.status_file = join(self.path, 'mackerel.yaml')
         self.write = write
@@ -47,6 +49,12 @@ class Database(database_class):
             status = yaml.load(f)
         for k in KEYS:
             setattr(self, '_{}'.format(k), status[k])
+
+        if self.regular:
+            passed = (datetime.now() - self._last_checkin) / timedelta(hours=1)
+            self._perm_value -= passed * cfg['perm']['per_hour'] + cfg['perm']['per_start']
+
+        self._last_checkin = datetime.now()
 
         self.msg = None
 
@@ -95,7 +103,7 @@ class Database(database_class):
         return (self._perm_until - datetime.now()).seconds // 60
 
     def pic_add_hook(self, pic):
-        if self.leader == 'we' and self.add_cond(pic) and self._perm_value >= 0.0:
+        if self.leader == 'we' and self.add_cond(pic) and self._perm_value >= 0:
             self._added += 1
             if self._added >= self.add_num:
                 self._added -= self.add_num
