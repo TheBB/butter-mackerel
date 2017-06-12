@@ -18,8 +18,6 @@ def add_value(secs, threshold, limit, spread):
 
 
 def try_perm(pic, db, cfg, dt):
-    if db.has_perm:
-        return False
     val = db.sub_value(pic)
     if val > 0:
         db._perm_value -= val * cfg['sub_mult']
@@ -56,13 +54,13 @@ class MackerelSlideshow(Slideshow):
         dt = None
         if self.previous:
             dt = (datetime.now() - self.previous).total_seconds()
-        if try_perm(pic, m.db, m['mackerel']['perm'], dt):
+        if try_perm(pic, m.db, m['mackerel']['perm'], dt) and m.db.points > 0:
             conf = choice(ascii_lowercase)
             ret = m.popup_message([
-                'Permission available, confirm with {}'.format(conf.upper()),
+                'Reduction available, confirm with {}'.format(conf.upper()),
             ])
             if conf == ret.lower():
-                m.db.give_permission(True)
+                m.db.update_points(delta=-1)
                 self.update_msg(m)
         self.previous = datetime.now()
         self.update_msg(m)
@@ -82,23 +80,17 @@ class MackerelSlideshow(Slideshow):
         if m.db.we_leading:
             msg += '. '
             if m.db.has_perm:
-                msg += 'Permission for {} minutes.'.format(m.db.perm_mins)
-            else:
-                msg += ' (' + ', '.join([
-                    'To add: {}'.format(m.db.add_num - m.db._added),
-                    'sub: {:.2f}'.format(abs(m.db._perm_value) * 100),
-                ]) + ')'
+                msg += '{} permissions.'.format(m.db._permissions)
+            msg += ' (' + ', '.join([
+                'To add: {}'.format(m.db.add_num - m.db._added),
+                'sub: {:.2f}'.format(abs(m.db._perm_value) * 100),
+            ]) + ')'
 
         self.message = msg
 
     @bind('m')
-    def mas_noskip(self, m):
-        m.popup_message(m.db.mas(skip=False))
-        self.update_msg(m)
-
-    @bind('n')
-    def mas_skip(self, m):
-        m.popup_message(m.db.mas(skip=True))
+    def mas(self, m):
+        m.popup_message(m.db.mas())
         self.update_msg(m)
 
     @bind('g')

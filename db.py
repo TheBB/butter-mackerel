@@ -10,10 +10,11 @@ KEYS = [
     'leader',
     'points',
     'streak',
-    'perm_until',
     'perm_value',
     'added',
     'last_checkin',
+    'permissions',
+    'add_next_illegal_mas',
 ]
 
 
@@ -96,11 +97,7 @@ class Database(database_class):
 
     @property
     def has_perm(self):
-        return self._perm_until > datetime.now()
-
-    @property
-    def perm_mins(self):
-        return (self._perm_until - datetime.now()).seconds // 60
+        return self._permissions > 0
 
     def pic_add_hook(self, pic):
         if self.leader == 'we' and self.add_cond(pic) and self._perm_value >= 0:
@@ -110,8 +107,7 @@ class Database(database_class):
                 self.give_permission(True)
 
     def give_permission(self, permission, reduced=0):
-        if permission:
-            self._perm_until = datetime.now() + timedelta(minutes=60-reduced)
+        self._permissions += 1
 
     def update_points(self, new=None, delta=None, sdelta=None):
         if new is not None:
@@ -137,27 +133,26 @@ class Database(database_class):
             self._streak = 1
             if leader == 'you':
                 points = 1
+                self._add_next_illegal_mas = 2
         self._leader = leader
         self._points = points
 
-    def mas(self, skip):
+    def mas(self):
         chg = 0
 
         if self.you_leading and self.points > 0:
-            pos = 'You are leading'
-            chg = -2 if skip else -1
+            pos = 'OK, you are leading.'
+            chg = -1
         elif self.you_leading:
-            pos = 'Figure out something to do here'
-        elif self.we_leading:
-            if self._perm_until >= datetime.now():
-                pos = 'You have permission'
-                chg = -1 if skip else 0
-                self._perm_until = datetime.now() - timedelta(hours=2)
-            elif not skip:
-                pos = "You don't have permission"
-                chg = 2
-            else:
-                return "That doesn't make sense"
+            pos = '???'
+        elif self.we_leading and self.has_perm:
+            pos = 'OK, you have permission.'
+            chg = 0
+            self._permissions -= 1
+        else:
+            pos = "Nuh-uh. You don't have permission"
+            chg = self._add_next_illegal_mas
+            self._add_next_illegal_mas += 1
 
         self.update_points(delta=chg)
-        return '{}. Delta {:+}. New {}.'.format(pos, chg, self.points)
+        return pos
