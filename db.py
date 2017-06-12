@@ -104,9 +104,9 @@ class Database(database_class):
             self._added += 1
             if self._added >= self.add_num:
                 self._added -= self.add_num
-                self.give_permission(True)
+                self.update_points(delta=-1)
 
-    def give_permission(self, permission, reduced=0):
+    def give_permission(self):
         self._permissions += 1
 
     def update_points(self, new=None, delta=None, sdelta=None):
@@ -126,6 +126,7 @@ class Database(database_class):
         if self.leader == leader == 'we':
             points += self._streak * (self._streak + 1) // 2
             self._streak += 1
+            self.give_permission()
         elif self.leader == leader == 'you':
             self._streak += 1
             points = self._streak
@@ -134,6 +135,8 @@ class Database(database_class):
             if leader == 'you':
                 points = 1
                 self._add_next_illegal_mas = 2
+            elif leader == 'we':
+                self.give_permission()
         self._leader = leader
         self._points = points
 
