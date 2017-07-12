@@ -134,7 +134,8 @@ class Database(database_class):
             self._streak = 1
             if leader == 'you':
                 points = 1
-                self._add_next_illegal_mas = 2
+                self._add_next_illegal_mas -= 1
+                self._add_next_illegal_mas = max(self._add_next_illegal_mas, 2)
             elif leader == 'we':
                 self.give_permission()
         self._leader = leader
