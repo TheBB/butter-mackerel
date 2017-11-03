@@ -53,7 +53,6 @@ class Database(database_class):
 
         if self.regular:
             passed = (datetime.now() - self._last_checkin) / timedelta(hours=1)
-            # self._perm_value -= passed * cfg['perm']['per_hour'] *  + cfg['perm']['per_start']
             self._perm_value -= passed * self._points / 100
             self._last_checkin = datetime.now()
 

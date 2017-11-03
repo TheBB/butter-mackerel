@@ -1,0 +1,7 @@
+[Core]
+Name = mackerel
+Module = mackerel
+
+[Documentation]
+Author = Eivind Fonn
+Version = 0.1
