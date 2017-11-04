@@ -294,6 +294,7 @@ class Mackerel(plugin.PluginBase):
         additional_wins = sum(1 for n in self._scores_you if n > npts)
         if additional_wins > 0:
             msg += [f'Awarded {additional_wins} additional {p.plural("win", additional_wins)}']
+
         violations = self._add_next_illegal_mas - 2
         if additional_wins >= violations > 0:
             self._add_next_illegal_mas = 2
@@ -304,16 +305,23 @@ class Mackerel(plugin.PluginBase):
             self._add_next_illegal_mas -= additional_wins
             additional_wins = 0
 
+        if additional_wins >= self._streak > 0:
+            msg += [f'Complete streak of {self._streak} vanquished']
+            additional_wins -= self._streak
+            self._streak = 0
+        elif 0 < additional_wins < self._streak:
+            self._streak -= additional_wins
+            additional_wins = 0
+            msg += [f'Streak reduced to {self._streak}']
+
         total_wins = 1 + additional_wins
         msg += [f'New permissions: {total_wins}']
-        if additional_wins == 0:
-            add = self._streak * (self._streak + 1) // 2
-            npts += self._streak * (self._streak + 1) // 2
-            self._streak += 1
+
+        add = self._streak * (self._streak + 1) // 2
+        npts += add
+        self._streak += 1
+        if add > 0:
             msg += [f'Added {add} due to streak, next time {self._streak + add}']
-        else:
-            self._streak = 1
-            msg += ['Streak vanquished']
 
         msg += [f'New points level {npts}']
         self._points = npts
