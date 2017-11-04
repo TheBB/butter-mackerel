@@ -268,6 +268,9 @@ class Mackerel(plugin.PluginBase):
     def add_succeeded(self, pic):
         if not self.add_condition(pic):
             return
+        if self._perm_value > 0.1:
+            print('Add not credited, too high clock')
+            return
         self._added += 1
         if self._added == self._to_add:
             new_pts = max(0, self._points - 1)
