@@ -219,9 +219,9 @@ class Mackerel(plugin.PluginBase):
         self.clock_value = lambda pic: pic.eval(self.cfg['clock']['pic_value'])
         self.add_condition = lambda pic: pic.eval(self.cfg['add']['condition'])
 
-        # if self.loader.remote:
-        #     remote_status = path.join(self.loader.remote, 'mackerel.yaml')
-        #     rsync_file(remote_status, self.status_file)
+        if self.loader.remote:
+            remote_status = path.join(self.loader.remote, 'mackerel.yaml')
+            rsync_file(remote_status, self.status_file)
         with open(self.status_file, 'r') as f:
             data = yaml.load(f)
         for key in KEYS:
