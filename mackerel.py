@@ -127,7 +127,7 @@ class BestOfGame(FromPicker):
         self.cfg = cfg
 
         self.pts = [[0,0,0], [0,0,0]]
-        self.max_pts = [2,2,4]
+        self.max_pts = [5,5,10]
         self.current = random.choice([0,1])
         self.prev_winner = None
         self.speed, self.bias = 0.55, 0.0
