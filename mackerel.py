@@ -45,6 +45,7 @@ class MackerelSlideshow(Slideshow):
 
     def make_current(self, m):
         self.picker = self.mackerel.picker
+        self.acc_prob = 1.0
         self.update_msg()
 
     def update_msg(self):
@@ -271,16 +272,20 @@ class Mackerel(plugin.PluginBase):
         if self._perm_value > 0.1:
             print('Add not credited, too high clock')
             return
-        self._added += 1
-        if self._added == self._to_add:
-            new_pts = max(0, self._points - 1)
-            print(f'[mackerel] points update: {self._points} -> {new_pts}')
-            self._points = new_pts
 
-            factor = random.uniform(*self.cfg['add']['multiplier_range'])
-            self._to_add = int(factor * self._to_add)
-            self._added = 0
-            print(f'[mackerel] to add: {self.to_add}')
+        self._added += 1
+        print(f'[mackerel] added: {self._added} / {self._to_add}')
+        if self._added < self._to_add:
+            return
+
+        new_pts = max(0, self._points - 1)
+        print(f'[mackerel] points update: {self._points} -> {new_pts}')
+        self._points = new_pts
+
+        factor = random.uniform(*self.cfg['add']['multiplier_range'])
+        self._to_add = int(factor * self._to_add)
+        self._added = 0
+        print(f'[mackerel] to add: {self.to_add}')
 
     def renew(self, m, npts):
         msg = []
@@ -310,9 +315,11 @@ class Mackerel(plugin.PluginBase):
             self._streak = 1
             msg += ['Streak vanquished']
 
-        msg += ['New points level {npts}']
+        msg += [f'New points level {npts}']
         self._points = npts
         self._permissions += total_wins
         self._scores_you = []
+        self._added = 0
+        self._to_add = self.cfg['add']['num']
 
         m.popup_message(msg)
