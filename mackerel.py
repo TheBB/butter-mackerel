@@ -310,5 +310,6 @@ class Mackerel(plugin.PluginBase):
         msg += ['New points level {npts}']
         self._points = npts
         self._permissions += total_wins
+        self._scores_you = []
 
         m.popup_message(msg)
