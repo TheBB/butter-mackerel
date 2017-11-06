@@ -34,6 +34,14 @@ def sub_value(secs, threshold, limit, spread):
     return float(g * limit)
 
 
+def limiting_sub(current, limit, subtract):
+    if current <= limit:
+        return limit, subtract
+    if current - limit < subtract:
+        return limit, subtract - (current - limit)
+    return current - subtract, 0
+
+
 class MackerelSlideshow(Slideshow):
 
     def __init__(self, mackerel, m):
@@ -127,8 +135,8 @@ class BestOfGame(FromPicker):
         self.value = lambda pic: pic.eval(cfg['value'])
         self.cfg = cfg
 
-        self.pts = [[0,0,0], [0,0,0]]
-        self.max_pts = [5,5,10]
+        self.max_pts = self.cfg['maxpts']
+        self.pts = [[0] * len(self.max_pts) for _ in range(2)]
         self.current = random.choice([0,1])
         self.prev_winner = None
         self.speed, self.bias = 0.55, 0.0
@@ -223,6 +231,7 @@ class Mackerel(plugin.PluginBase):
         if self.loader.remote:
             remote_status = path.join(self.loader.remote, 'mackerel.yaml')
             rsync_file(remote_status, self.status_file)
+
         with open(self.status_file, 'r') as f:
             data = yaml.load(f)
         for key in KEYS:
@@ -292,36 +301,22 @@ class Mackerel(plugin.PluginBase):
         p = inflect.engine()
 
         additional_wins = sum(1 for n in self._scores_you if n > npts)
-        if additional_wins > 0:
-            msg += [f'Awarded {additional_wins} additional {p.plural("win", additional_wins)}']
+        msg += [f'Awarded {additional_wins} additional {p.plural("win", additional_wins)}']
 
-        violations = self._add_next_illegal_mas - 2
-        if additional_wins >= violations > 0:
-            self._add_next_illegal_mas = 2
-            additional_wins -= violations
-            msg += [f'Atoned for all {violations} {p.plural("violation", violations)}']
-        elif 0 < additional_wins < violations:
-            msg += [f'Atoned for {additional_wins} {p.plural("violation", additional_wins)}']
-            self._add_next_illegal_mas -= additional_wins
-            additional_wins = 0
-
-        if additional_wins >= self._streak > 0:
-            msg += [f'Complete streak of {self._streak} vanquished']
-            additional_wins -= self._streak
-            self._streak = 0
-        elif 0 < additional_wins < self._streak:
-            self._streak -= additional_wins
-            additional_wins = 0
-            msg += [f'Streak reduced to {self._streak}']
+        self._add_next_illegal_mas, additional_wins = limiting_sub(self._add_next_illegal_mas, 2, additional_wins)
+        msg += [f'After atoning for violations: {additional_wins}']
 
         total_wins = 1 + additional_wins
         msg += [f'New permissions: {total_wins}']
 
-        add = self._streak * (self._streak + 1) // 2
-        npts += add
-        self._streak += 1
-        if add > 0:
+        if additional_wins == 0:
+            add = self._streak * (self._streak + 1) // 2
+            npts += add
+            self._streak += 1
             msg += [f'Added {add} due to streak, next time {self._streak + add}']
+        else:
+            self._streak = 1
+            msg += [f'Vanquished streak']
 
         msg += [f'New points level {npts}']
         self._points = npts
