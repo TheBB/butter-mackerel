@@ -300,23 +300,26 @@ class Mackerel(plugin.PluginBase):
         msg = []
         p = inflect.engine()
 
-        additional_wins = sum(1 for n in self._scores_you if n > npts)
-        msg += [f'Awarded {additional_wins} additional {p.plural("win", additional_wins)}']
+        awins = sum(1 for n in self._scores_you if n > npts)
+        msg += [f'Awarded {additional_wins} additional {p.plural("win", awins)}']
 
-        self._add_next_illegal_mas, additional_wins = limiting_sub(self._add_next_illegal_mas, 2, additional_wins)
-        msg += [f'After atoning for violations: {additional_wins}']
+        self._add_next_illegal_mas, awins = limiting_sub(self._add_next_illegal_mas, 2, awins)
+        msg += [f'After atoning for violations: {awins}']
 
-        total_wins = 1 + additional_wins
+        streak_quashed = awins > 0
+        if streak_quashed:
+            self._streak, awins = limiting_sub(self._streak, 0, awins)
+            msg += [f'Streak reduced to {self._streak}']
+        else:
+            self._streak += 1
+            msg += [f'Streak increased to {self._streak}']
+
+        total_wins = 1 + awins
         msg += [f'New permissions: {total_wins}']
 
-        if additional_wins == 0:
-            add = self._streak * (self._streak + 1) // 2
-            npts += add
-            self._streak += 1
-            msg += [f'Added {add} due to streak, next time {self._streak + add}']
-        else:
-            self._streak = 1
-            msg += [f'Vanquished streak']
+        add = self._streak * (self._streak + 1) // 2
+        msg += [f'Added {add} due to streak']
+        npts += add
 
         msg += [f'New points level {npts}']
         self._points = npts
