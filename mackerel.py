@@ -90,7 +90,7 @@ class MackerelSlideshow(Slideshow):
                     ret = m.popup_message([f'Reduction available, confirm with {confirm.upper()}'])
                     if confirm == ret.lower():
                         mack._points = max(0, mack._points - 1)
-                        self.acc_prob = 1.0
+                    self.acc_prob = 1.0
 
         self.previous = datetime.now()
         self.update_msg()
