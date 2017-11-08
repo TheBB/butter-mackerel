@@ -23,6 +23,7 @@ KEYS = [
     'permissions',
     'add_next_illegal_mas',
     'scores_you',
+    'last_close_unlocked',
 ]
 
 
@@ -34,12 +35,12 @@ def sub_value(secs, threshold, limit, spread):
     return float(g * limit)
 
 
-def limiting_sub(current, limit, subtract):
-    if current <= limit:
-        return limit, subtract
-    if current - limit < subtract:
-        return limit, subtract - (current - limit)
-    return current - subtract, 0
+def limiting_sub(current, limit, subtract, cost=1, effectiveness=1):
+    available = effectiveness * subtract
+    while current > limit and available > cost:
+        available -= cost
+        current -= 1
+    return current, available // effectiveness
 
 
 class MackerelSlideshow(Slideshow):
@@ -48,6 +49,8 @@ class MackerelSlideshow(Slideshow):
         self.previous = None
         self.mackerel = mackerel
         self.acc_prob = 1.0
+        self.lock = 0
+        self.lock_limit = mackerel.cfg['clock']['lock']
         super().__init__(m, mackerel.picker)
         self.update_msg()
 
@@ -55,6 +58,10 @@ class MackerelSlideshow(Slideshow):
         self.picker = self.mackerel.picker
         self.acc_prob = 1.0
         self.update_msg()
+
+    @property
+    def locked(self):
+        return self.lock < self.lock_limit
 
     def update_msg(self):
         mack = self.mackerel
@@ -65,12 +72,15 @@ class MackerelSlideshow(Slideshow):
         msg += f' | add {mack.to_add}'
         msg += f' | clock {mack._perm_value * 100:.2f}'
         msg += f' | acc {(1 - self.acc_prob) * 100:.2f}%'
+        msg += f' | streak {mack._streak}'
+        msg += ' | ' + ('locked' if self.locked else 'unlocked')
 
         self.message = msg
 
     @bind()
     def pic(self, m):
         mack = self.mackerel
+        mack._last_close_unlocked = False
         cfg = mack.cfg['clock']
         pic = super().pic(m, set_msg=False)
         val = mack.clock_value(pic)
@@ -78,10 +88,14 @@ class MackerelSlideshow(Slideshow):
         dt = (datetime.now() - self.previous).total_seconds() if self.previous else None
         if val > 0:
             mack._perm_value += val * cfg['pic_multiplier']
+            self.lock = 0
         elif dt:
             sub = sub_value(dt, cfg['threshold'], cfg['limit'], cfg['spread'])
             if mack._perm_value > 0.0:
                 mack._perm_value = max(0.0, mack._perm_value - sub)
+                self.lock = 0
+            elif self.locked:
+                self.lock += 1
             else:
                 prob = min(sub, cfg['max_reduction_probability'])
                 self.acc_prob *= 1.0 - prob
@@ -91,6 +105,8 @@ class MackerelSlideshow(Slideshow):
                     if confirm == ret.lower():
                         mack._points = max(0, mack._points - 1)
                     self.acc_prob = 1.0
+
+        mack._last_close_unlocked = not self.locked
 
         self.previous = datetime.now()
         self.update_msg()
@@ -115,10 +131,10 @@ class MackerelSlideshow(Slideshow):
 
     @bind('g')
     def bestof(self, m):
-        if self.mackerel._points == 0 and self.mackerel._perm_value == 0.0:
-            BestOfGame(self.mackerel, m)
+        if self.locked:
+            m.popup_message('Locked')
         else:
-            m.popup_message('Nothing to do')
+            BestOfGame(self.mackerel, m)
 
 del MackerelSlideshow.keymap['P']
 
@@ -278,8 +294,8 @@ class Mackerel(plugin.PluginBase):
     def add_succeeded(self, pic):
         if not self.add_condition(pic):
             return
-        if self._perm_value > 0.1:
-            print('Add not credited, too high clock')
+        if not self._last_close_unlocked:
+            print('Add not credited, was not unlocked')
             return
 
         self._added += 1
@@ -301,25 +317,27 @@ class Mackerel(plugin.PluginBase):
         p = inflect.engine()
 
         awins = sum(1 for n in self._scores_you if n > npts)
-        msg += [f'Awarded {additional_wins} additional {p.plural("win", awins)}']
+        msg += [f'Awarded {awins} additional {p.plural("win", awins)}']
 
         self._add_next_illegal_mas, awins = limiting_sub(self._add_next_illegal_mas, 2, awins)
         msg += [f'After atoning for violations: {awins}']
 
         streak_quashed = awins > 0
         if streak_quashed:
-            self._streak, awins = limiting_sub(self._streak, 0, awins)
-            msg += [f'Streak reduced to {self._streak}']
-        else:
+            prevstreak = self._stream
+            self._streak, awins = limiting_sub(self._streak, 0, awins, cost=2, effectiveness=3)
+            msg += [f'Streak reduced from {prevstreak} to {self._streak}']
+        elif random.random() <= 0.85:
             self._streak += 1
             msg += [f'Streak increased to {self._streak}']
+        else:
+            msg += [f'Streak remains at {self._streak}']
 
         total_wins = 1 + awins
         msg += [f'New permissions: {total_wins}']
 
-        add = self._streak * (self._streak + 1) // 2
-        msg += [f'Added {add} due to streak']
-        npts += add
+        msg += [f'Added {self._streak} due to streak']
+        npts += self._streak
 
         msg += [f'New points level {npts}']
         self._points = npts
