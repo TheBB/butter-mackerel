@@ -328,7 +328,7 @@ class Mackerel(plugin.PluginBase):
             prevstreak = self._stream
             self._streak, awins = limiting_sub(self._streak, 0, awins, cost=2, effectiveness=3)
             msg += [f'Streak reduced from {prevstreak} to {self._streak}']
-        elif random.random() <= 0.85:
+        elif random.random() <= 0.8:
             self._streak += 1
             msg += [f'Streak increased to {self._streak}']
         else:
@@ -337,8 +337,9 @@ class Mackerel(plugin.PluginBase):
         total_wins = 1 + awins
         msg += [f'New permissions: {total_wins}']
 
-        msg += [f'Added {self._streak} due to streak']
-        npts += self._streak
+        add = self._streak * (self._streak + 1) // 2
+        msg += [f'Added {add} due to streak']
+        npts += add
 
         msg += [f'New points level {npts}']
         self._points = npts
