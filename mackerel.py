@@ -125,6 +125,7 @@ class MackerelSlideshow(Slideshow):
 
     @bind('M')
     def reg_mas(self, m):
+        mack = self.mackerel
         mack._permissions -= 1
         m.popup_message("Ok, one permission removed")
         self.update_msg()
