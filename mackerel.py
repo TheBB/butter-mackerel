@@ -132,7 +132,7 @@ class MackerelSlideshow(Slideshow):
 
     @bind('g')
     def bestof(self, m):
-        if self.locked:
+        if self.locked or self.mackerel._points > 0:
             m.popup_message('Locked')
         else:
             BestOfGame(self.mackerel, m)
@@ -325,7 +325,7 @@ class Mackerel(plugin.PluginBase):
 
         streak_quashed = awins > 0
         if streak_quashed:
-            prevstreak = self._stream
+            prevstreak = self._streak
             self._streak, awins = limiting_sub(self._streak, 0, awins, cost=2, effectiveness=3)
             msg += [f'Streak reduced from {prevstreak} to {self._streak}']
         elif random.random() <= 0.8:
