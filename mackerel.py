@@ -337,7 +337,7 @@ class Mackerel(plugin.PluginBase):
         total_wins = 1 + awins
         msg += [f'New permissions: {total_wins}']
 
-        add = self._streak * (self._streak + 1) // 2
+        add = sum(range(self._streak, 0, -2))
         msg += [f'Added {add} due to streak']
         npts += add
 
