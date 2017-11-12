@@ -137,6 +137,7 @@ class MackerelSlideshow(Slideshow):
             BestOfGame(self.mackerel, m)
 
 del MackerelSlideshow.keymap['P']
+del MackerelSlideshow.keymap['c']
 
 
 class BestOfGame(FromPicker):
