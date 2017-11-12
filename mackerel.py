@@ -13,7 +13,6 @@ import butter.plugin as plugin
 
 
 KEYS = [
-    'leader',
     'points',
     'streak',
     'perm_value',
