@@ -41,6 +41,7 @@ class MackerelSlideshow(Slideshow):
         super().__init__(m, picker)
         self.update_msg()
         self.initialized = True
+        self.last_tick = datetime.now()
 
     def make_current(self, m):
         self.update_msg()
@@ -63,7 +64,24 @@ class MackerelSlideshow(Slideshow):
     @bind()
     def pic(self, m):
         pic = super().pic(m, set_msg=False)
-        self.state.tick()
+        cfg = self.state.cfg['wait']['tick']
+
+        live = not m.safe and m.height() > cfg['min-height'] and self.initialized
+        now = datetime.now()
+        dt = None
+        if live and self.last_tick:
+            now = datetime.now()
+            dt = now - self.last_tick
+            self.last_tick = now
+
+            if not (timedelta(seconds=cfg['min-seconds']) <= dt <= timedelta(seconds=cfg['max-seconds'])):
+                dt = None
+        elif live:
+            self.last_tick = now
+        else:
+            self.last_tick = None
+
+        self.state.tick(dt)
         if self.initialized:
             self.state.pop(m)
         self.update_msg()
@@ -90,6 +108,11 @@ class MackerelSlideshow(Slideshow):
             m.popup_message("Nope")
         else:
             BestOfGame(self.state, m, functools.partial(self._game_callback, m))
+
+    @bind('e')
+    def edge(self, m):
+        self.state.edge(m)
+        self.update_msg()
 
     def _bet_callback(self, m, your_reduction, our_reduction, winner, npts):
         if winner == 0:
@@ -285,8 +308,6 @@ class MackerelState:
             'uniform': np.random.uniform,
         })
 
-        self.close_wait(msg=False)
-
     def __del__(self):
         print(self._state)
         local = path.join(self._loader.path, 'mackerel.state')
@@ -301,7 +322,7 @@ class MackerelState:
         globs.update(self._globals)
         exec(code, globs, self._state)
 
-    def tick(self):
+    def tick(self, live_duration=None):
         now = datetime.now()
         dt = (now - self._state['last_tick']).total_seconds()
         self._state['last_tick'] = now
@@ -314,6 +335,9 @@ class MackerelState:
             events += [event] * np.random.poisson(rate * scale)
         random.shuffle(events)
         self._state['queue'].extend(events)
+
+        if live_duration and not self.closed:
+            self.add_wait(- self.cfg['wait']['tick']['factor'] * live_duration, msg=False)
 
     def pop(self, m):
         if not self._state['queue']:
@@ -376,6 +400,14 @@ class MackerelState:
         assert not self.waiting
         self.event('game-against', m, npts=npts)
 
+    def edge(self, m):
+        if self.closed:
+            m.popup_message('Nope')
+        if self.waiting:
+            self.event('edge', m)
+        else:
+            m.popup_message('Nothing')
+
     def wait_event_new_pic(self):
         if self.waiting and not self.closed:
             self.add_wait(seconds=-self._state['wait_new_pic'], msg=False)
@@ -406,15 +438,12 @@ class MackerelState:
             duration = timedelta(days=days, hours=hours, seconds=seconds)
         else:
             duration = days
-        print('Here', duration)
         if self.waiting:
             self._state['wait_until'] += duration
         else:
             self._state['wait_until'] = datetime.now() + duration
             self._state['wait_closed'] = False
-        print(self._state['wait_until'])
         self.update_wait()
-        print(self._state['wait_until'])
         if msg:
             self.m.popup_message(f'Waiting {days}d {hours}h')
 
