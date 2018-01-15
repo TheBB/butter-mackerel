@@ -109,7 +109,7 @@ class MackerelSlideshow(Slideshow):
         else:
             BestOfGame(self.state, m, functools.partial(self._game_callback, m))
 
-    @bind('e')
+    @bind('E')
     def edge(self, m):
         self.state.edge(m)
         self.update_msg()
@@ -363,12 +363,12 @@ class MackerelState:
 
     @property
     def waiting(self):
+        self.update_wait()
         if not self._state['wait_until']:
             return False
         now = datetime.now()
         if self._state['wait_until'] > now:
             return self._state['wait_until'].replace(microsecond=0) - now.replace(microsecond=0)
-        self.update_wait()
         return False
 
     def update_wait(self):
@@ -401,12 +401,13 @@ class MackerelState:
         self.event('game-against', m, npts=npts)
 
     def edge(self, m):
-        if self.closed:
-            m.popup_message('Nope')
-        if self.waiting:
-            self.event('edge', m)
-        else:
+        if not self.waiting:
             m.popup_message('Nothing')
+            return
+        if self.closed:
+            self.event('edge-closed', m)
+        else:
+            self.event('edge-open', m)
 
     def wait_event_new_pic(self):
         if self.waiting and not self.closed:
@@ -445,7 +446,11 @@ class MackerelState:
             self._state['wait_closed'] = False
         self.update_wait()
         if msg:
-            self.m.popup_message(f'Waiting {days}d {hours}h')
+            duration = duration - timedelta(microseconds=duration.microseconds)
+            if duration < timedelta():
+                self.m.popup_message(f'Reduced wait time with {-duration}')
+            else:
+                self.m.popup_message(f'Added wait time {-duration}')
 
     @visible
     def nothing(self, msg=True):
