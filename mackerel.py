@@ -336,7 +336,7 @@ class MackerelState:
         random.shuffle(events)
         self._state['queue'].extend(events)
 
-        if live_duration and not self.closed:
+        if live_duration and self.waiting:
             self.add_wait(- self.cfg['wait']['tick']['factor'] * live_duration, msg=False)
 
     def pop(self, m):
@@ -419,7 +419,8 @@ class MackerelState:
         return False
 
     def wait_event_collision(self):
-        self.add_wait(seconds=self.cfg['wait']['new-pics']['collide-penalty-seconds'])
+        self.add_wait(seconds=self.cfg['wait']['new-pics']['collide-penalty-seconds'], msg=False)
+        self._state['wait_new_pic'] = self.cfg['wait']['new-pics']['seconds']
 
     @visible
     def add_permissions(self, new=1, msg=True):
@@ -450,7 +451,7 @@ class MackerelState:
             if duration < timedelta():
                 self.m.popup_message(f'Reduced wait time with {-duration}')
             else:
-                self.m.popup_message(f'Added wait time {-duration}')
+                self.m.popup_message(f'Added wait time {duration}')
 
     @visible
     def nothing(self, msg=True):
