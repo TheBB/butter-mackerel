@@ -1,5 +1,3 @@
-import click
-from collections import namedtuple
 from datetime import datetime, timedelta
 import functools
 import inflect
@@ -8,8 +6,6 @@ from os import path
 import pickle
 import random
 from scipy.stats import binom
-import string
-import yaml
 
 from butter.db import rsync_file
 from butter.programs import Slideshow, FromPicker, bind
@@ -46,25 +42,19 @@ class MackerelSlideshow(Slideshow):
     def make_current(self, m):
         self.update_msg()
 
-    @property
-    def locked(self):
-        return self.lock < self.lock_limit
-
     def update_msg(self):
         s = self.state
         p = inflect.engine()
-        msg = f'{s.permissions} {p.plural("permission", s.permissions)}'
+        msg = f'{s.permissions} {p.plural("permission", s.permissions)}, score: {s.score}'
         if s.nqueued:
             msg += f' | {s.nqueued} {p.plural("event", s.nqueued)} queued'
-        if s.waiting:
-            msg += f' | waiting {s.waiting} ({"closed" if s.closed else "open"})'
 
         self.message = msg
 
     @bind()
     def pic(self, m):
         pic = super().pic(m, set_msg=False)
-        cfg = self.state.cfg['wait']['tick']
+        cfg = self.state.cfg['tick']
 
         live = not m.safe and m.height() > cfg['min-height'] and self.initialized
         now = datetime.now()
@@ -104,79 +94,7 @@ class MackerelSlideshow(Slideshow):
 
     @bind('g')
     def thing(self, m):
-        if self.state.waiting:
-            m.popup_message("Nope")
-        else:
-            BestOfGame(self.state, m, functools.partial(self._game_callback, m))
-
-    @bind('E')
-    def edge(self, m):
-        self.state.edge(m)
-        self.update_msg()
-
-    def _bet_callback(self, m, your_reduction, our_reduction, winner, npts):
-        if winner == 0:
-            self.state.add_wait(our_reduction, msg=False)
-        else:
-            self.state.add_wait(-your_reduction, msg=False)
-        if self.state.waiting:
-            self.state.close_wait(msg=False)
-
-    @bind('b')
-    def bet(self, m):
-        max_duration = self.state.waiting
-        if not max_duration:
-            m.popup_message("Nope")
-            return
-        max_duration /= 2
-        your_reduction = max_duration
-        bias = 0
-
-        maxpts = self.state.cfg['bestof']['maxpts'][-1]
-
-        while True:
-            a = maxpts - max(bias, 0)
-            b = maxpts + min(bias, 0)
-            nrounds = a + b - 1
-            prob = sum(binom.pmf(n, nrounds, 0.5) for n in range(a, nrounds+1))
-            our_reduction = (1 - prob) * your_reduction * 1.1 / prob
-
-            ret = m.popup_message([
-                f'Maximal allowable reduction: {max_duration}',
-                f'Requested reduction: {your_reduction}',
-                f'Start score: {max(bias,0)}-{-min(bias,0)}',
-                f'We win in {prob*100:.2f}% of cases',
-                f'Our reduction: {our_reduction}'
-            ])
-            if ret == 'RET':
-                break
-            elif ret in {'ESC', 'q'}:
-                return
-            elif ret in 'mMhHdD':
-                if ret.lower() == 'm':
-                    adjust = timedelta(minutes=1)
-                elif ret.lower() == 'h':
-                    adjust = timedelta(hours=1)
-                elif ret.lower() == 'd':
-                    adjust = timedelta(days=1)
-                if ret.isupper():
-                    your_reduction += adjust
-                else:
-                    your_reduction -= adjust
-                your_reduction = min(max_duration, your_reduction)
-                your_reduction = max(timedelta(), your_reduction)
-            elif ret in 'bB':
-                if ret.islower():
-                    bias += 1
-                else:
-                    bias -= 1
-                bias = max(min(bias, maxpts-1), -maxpts+1)
-
-        BestOfGame(
-            self.state, m,
-            functools.partial(self._bet_callback, m, your_reduction, our_reduction),
-            start=(max(bias,0), -min(bias,0)),
-        )
+        BestOfGame(self.state, m, functools.partial(self._game_callback, m))
 
 
 del MackerelSlideshow.keymap['P']
@@ -293,6 +211,8 @@ class MackerelState:
         with open(local, 'rb') as f:
             self._state = pickle.load(f)
 
+        self._state['score'] = 15
+
         self._loader = loader
         globs = {key: getattr(self, key) for key in dir(self)}
         self._globals = {
@@ -336,9 +256,6 @@ class MackerelState:
         random.shuffle(events)
         self._state['queue'].extend(events)
 
-        if live_duration and self.waiting:
-            self.add_wait(- self.cfg['wait']['tick']['factor'] * live_duration, msg=False)
-
     def pop(self, m):
         if not self._state['queue']:
             return
@@ -358,69 +275,25 @@ class MackerelState:
         return self._state['permissions']
 
     @property
+    def score(self):
+        return self._state['score']
+
+    @property
     def nqueued(self):
         return len(self._state['queue'])
 
-    @property
-    def waiting(self):
-        self.update_wait()
-        if not self._state['wait_until']:
-            return False
-        now = datetime.now()
-        if self._state['wait_until'] > now:
-            return self._state['wait_until'].replace(microsecond=0) - now.replace(microsecond=0)
-        return False
-
-    def update_wait(self):
-        if self._state['wait_until'] and self._state['wait_until'] < datetime.now():
-            self.reset_wait()
-
-    def reset_wait(self):
-        self._state['wait_until'] = None
-        self._state['wait_closed'] = None
-        self._state['wait_new_pic'] = self.cfg['wait']['new-pics']['seconds']
-
-    @property
-    def closed(self):
-        if self.waiting:
-            return self._state['wait_closed']
-
     def mas(self, m, physical=False):
         self.add_permissions(-1, msg=False)
-        if physical or (self.permissions >= 0 and not self.waiting):
+        if physical or self.permissions >= 0:
             m.popup_message('Removed one permission')
         else:
             self.event('illegal-mas', m)
 
     def game_for(self, m, npts):
-        assert not self.waiting
         self.event('game-for', m, npts=npts)
 
     def game_against(self, m, npts):
-        assert not self.waiting
         self.event('game-against', m, npts=npts)
-
-    def edge(self, m):
-        if not self.waiting:
-            m.popup_message('Nothing')
-            return
-        if self.closed:
-            self.event('edge-closed', m)
-        else:
-            self.event('edge-open', m)
-
-    def wait_event_new_pic(self):
-        if self.waiting and not self.closed:
-            self.add_wait(seconds=-self._state['wait_new_pic'], msg=False)
-            self._state['wait_new_pic'] += self.cfg['wait']['new-pics']['seconds']
-            if random.random() < self.cfg['wait']['new-pics']['close-prob']:
-                self.close_wait(msg=False)
-            return True
-        return False
-
-    def wait_event_collision(self):
-        self.add_wait(seconds=self.cfg['wait']['new-pics']['collide-penalty-seconds'], msg=False)
-        self._state['wait_new_pic'] = self.cfg['wait']['new-pics']['seconds']
 
     @visible
     def add_permissions(self, new=1, msg=True):
@@ -429,29 +302,13 @@ class MackerelState:
             self.m.popup_message(f'Added permission: {new}, now {self.permissions}')
 
     @visible
-    def close_wait(self, msg=True):
-        self._state['wait_closed'] = True
-        if msg:
-            self.m.popup_message('Closed wait period')
-
-    @visible
-    def add_wait(self, days=0, hours=0, seconds=0, msg=True):
-        if not isinstance(days, timedelta):
-            duration = timedelta(days=days, hours=hours, seconds=seconds)
+    def add_score(self, new, msg=True):
+        self._state['score'] += new
+        if self.score < 0:
+            self.add_permissions(msg=msg)
+            self._state['score'] = self.cfg['score']['base']
         else:
-            duration = days
-        if self.waiting:
-            self._state['wait_until'] += duration
-        else:
-            self._state['wait_until'] = datetime.now() + duration
-            self._state['wait_closed'] = False
-        self.update_wait()
-        if msg:
-            duration = duration - timedelta(microseconds=duration.microseconds)
-            if duration < timedelta():
-                self.m.popup_message(f'Reduced wait time with {-duration}')
-            else:
-                self.m.popup_message(f'Added wait time {duration}')
+            self.m.popup_message(f'Added score: {new}, now {self.score}')
 
     @visible
     def nothing(self, msg=True):
@@ -482,13 +339,7 @@ class Mackerel(plugin.PluginBase):
         return functools.partial(MackerelSlideshow, self.state, self.picker)
 
     def add_failed(self, filename, reason):
-        if reason == 'collision':
-            self.state.wait_event_collision()
-            print(f'Now waiting for {self.state.waiting} {"closed" if self.state.closed else "open"}')
+        pass
 
     def add_succeeded(self, pic):
-        cfg = self.cfg['wait']['new-pics']
-        if pic.eval(cfg['condition']) and self.state.wait_event_new_pic():
-            print(f'Now waiting for {self.state.waiting} {"closed" if self.state.closed else "open"}')
-        elif pic.eval(cfg['condition']) and self.state.waiting:
-            print('Wait time not reduced')
+        pass
