@@ -334,7 +334,7 @@ class MackerelState:
     @visible
     def add_score(self, new, msg=True):
         self._state['score'] += new
-        if self.score < 0:
+        if self.score <= 0:
             self.add_permissions(msg=msg)
             self._state['score'] = self.cfg['score']['base']
         elif msg:
