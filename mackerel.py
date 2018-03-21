@@ -28,6 +28,30 @@ def limiting_sub(current, limit, subtract, cost=1, effectiveness=1):
     return current, available // effectiveness
 
 
+class Timed:
+
+    def __init__(self, func, argname):
+        self.func = func
+        self.argname = argname
+        self.last_call = None
+
+    def __call__(self, *args, **kwargs):
+        now = datetime.now()
+        if self.last_call is None:
+            retval = self.func(*args, **kwargs, **{self.argname: None})
+        else:
+            duration = now - self.last_call
+            retval = self.func(*args, **kwargs, **{self.argname: duration})
+        self.last_call = now
+        return retval
+
+
+def timed(argname):
+    def decorator(func):
+        return Timed(func, argname)
+    return decorator
+
+
 class MackerelSlideshow(Slideshow):
 
     def __init__(self, state, picker, m):
@@ -87,6 +111,7 @@ class MackerelSlideshow(Slideshow):
         self.update_msg()
 
     def _game_callback(self, m, winner, npts):
+        self.state.add_score(-20, msg=False)
         if winner == 0:
             self.state.game_against(m, npts)
         else:
@@ -94,6 +119,7 @@ class MackerelSlideshow(Slideshow):
 
     @bind('g')
     def thing(self, m):
+        self.state.add_score(20, msg=False)
         BestOfGame(self.state, m, functools.partial(self._game_callback, m))
 
 
@@ -121,7 +147,6 @@ class BestOfGame(FromPicker):
         self.speed, self.bias = 0.55, 0.0
 
         self.update_msg()
-        self.pic(m)
 
     def update_msg(self):
         self.message = '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts))
@@ -146,12 +171,19 @@ class BestOfGame(FromPicker):
         m.pop(self)
 
     @bind()
-    def pic(self, m):
+    @timed('dt')
+    def pic(self, m, dt):
         cur = self.current
         p = lambda b: max(min((1.020**b) / (1.020**b + 1), 0.93), 0.07)
         conv = lambda p: self.speed * p
 
-        win = random.random() <= conv(p(self.bias) if cur == 0 else 1 - p(self.bias))
+        if dt and dt.total_seconds() < self.cfg['time']:
+            print(dt.total_seconds())
+            bias = self.bias + (self.cfg['time'] - dt.total_seconds()) * self.cfg['bias_adjust_factor']
+        else:
+            bias = self.bias
+        prob_win = conv(p(bias) if cur == 0 else 1 - p(bias))
+        win = random.random() <= prob_win
         pic = self.picker.get()
         while self.trigger(pic) != win:
             pic = self.picker.get()
@@ -210,8 +242,6 @@ class MackerelState:
 
         with open(local, 'rb') as f:
             self._state = pickle.load(f)
-
-        self._state['score'] = 15
 
         self._loader = loader
         globs = {key: getattr(self, key) for key in dir(self)}
@@ -307,7 +337,7 @@ class MackerelState:
         if self.score < 0:
             self.add_permissions(msg=msg)
             self._state['score'] = self.cfg['score']['base']
-        else:
+        elif msg:
             self.m.popup_message(f'Added score: {new}, now {self.score}')
 
     @visible
