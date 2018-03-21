@@ -144,12 +144,15 @@ class BestOfGame(FromPicker):
         self.pts[1][-1] = start[1]
         self.current = random.choice([0,1])
         self.prev_winner = None
-        self.speed, self.bias = 0.55, 0.0
+        self.speed, self.bias, self.add_bias = 0.55, 0.0, 0.0
 
         self.update_msg()
 
     def update_msg(self):
-        self.message = '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts))
+        self.message = (
+            '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts)) +
+            f'     ({self.add_bias:.2f})'
+        )
 
     def add_pts(self, winner, npts):
         l_pts, w_pts = self.pts[1 - winner], self.pts[winner]
@@ -177,11 +180,13 @@ class BestOfGame(FromPicker):
         p = lambda b: max(min((1.020**b) / (1.020**b + 1), 0.93), 0.07)
         conv = lambda p: self.speed * p
 
+        self.add_bias *= self.cfg['bias_degrade_factor']
         if dt and dt.total_seconds() < self.cfg['time']:
-            print(dt.total_seconds())
-            bias = self.bias + (self.cfg['time'] - dt.total_seconds()) * self.cfg['bias_adjust_factor']
-        else:
-            bias = self.bias
+            adj = (self.cfg['time'] - dt.total_seconds())
+            adj *= self.cfg['bias_adjust_factor'] / self.cfg['time']
+            self.add_bias += adj
+        self.update_msg()
+        bias = self.bias + self.add_bias
         prob_win = conv(p(bias) if cur == 0 else 1 - p(bias))
         win = random.random() <= prob_win
         pic = self.picker.get()
