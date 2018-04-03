@@ -145,6 +145,7 @@ class BestOfGame(FromPicker):
         self.current = random.choice([0,1])
         self.prev_winner = None
         self.speed, self.bias, self.add_bias = 0.55, 0.0, 0.0
+        self.done = False
 
         self.update_msg()
 
@@ -171,6 +172,7 @@ class BestOfGame(FromPicker):
         msg = '{} win with {} {}'.format('We' if winner == 0 else 'You', npts, e.plural('point', npts))
         m.popup_message(msg)
         self.callback(winner, npts)
+        self.done = True
         m.pop(self)
 
     @bind()
@@ -338,12 +340,13 @@ class MackerelState:
 
     @visible
     def add_score(self, new, msg=True):
-        self._state['score'] += new
-        if self.score <= 0:
+        if self._state['score'] == 0 and new < 0:
             self.add_permissions(msg=msg)
             self._state['score'] = self.cfg['score']['base']
-        elif msg:
-            self.m.popup_message(f'Added score: {new}, now {self.score}')
+        else:
+            self._state['score'] = max(self._state['score'] + new, 0)
+            if msg:
+                self.m.popup_message(f'Added score: {new}, now {self.score}')
 
     @visible
     def nothing(self, msg=True):
