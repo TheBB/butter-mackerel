@@ -117,7 +117,7 @@ class MackerelSlideshow(Slideshow):
         else:
             self.state.game_for(m, npts)
 
-    @bind('g')
+    @bind('G')
     def thing(self, m):
         self.state.add_score(20, msg=False)
         BestOfGame(self.state, m, functools.partial(self._game_callback, m))
