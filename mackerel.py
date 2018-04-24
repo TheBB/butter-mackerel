@@ -182,11 +182,9 @@ class BestOfGame(FromPicker):
         p = lambda b: max(min((1.020**b) / (1.020**b + 1), 0.93), 0.07)
         conv = lambda p: self.speed * p
 
-        self.add_bias *= self.cfg['bias_degrade_factor']
         if dt and dt.total_seconds() < self.cfg['time']:
-            adj = (self.cfg['time'] - dt.total_seconds())
-            adj *= self.cfg['bias_adjust_factor'] / self.cfg['time']
-            self.add_bias += adj
+            return
+
         self.update_msg()
         bias = self.bias + self.add_bias
         prob_win = conv(p(bias) if cur == 0 else 1 - p(bias))
