@@ -378,4 +378,13 @@ class Mackerel(plugin.PluginBase):
         pass
 
     def add_succeeded(self, pic):
-        pass
+        cfg = self.cfg['score']
+        if not pic.eval(cfg['condition']):
+            return
+        left, right = cfg['range']
+        prob = max(0.0, min(1.0, (self.state.score - left) / (right - left)))
+        if random.random() <= prob:
+            self.state.add_score(-1, msg=False)
+            print(f'Succeeded at {prob*100:.02f}%, now {self.state.score}')
+        else:
+            print(f'Failed at {prob*100:.02f}%, still {self.state.score}')
