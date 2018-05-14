@@ -317,6 +317,10 @@ class MackerelState:
     def nqueued(self):
         return len(self._state['queue'])
 
+    @property
+    def range(self):
+        return self._state['range']
+
     def mas(self, m, physical=False):
         self.add_permissions(-1, msg=False)
         if physical or self.permissions >= 0:
@@ -341,10 +345,16 @@ class MackerelState:
         if self._state['score'] == 0 and new < 0:
             self.add_permissions(msg=msg)
             self._state['score'] = self.cfg['score']['base']
-        else:
-            self._state['score'] = max(self._state['score'] + new, 0)
-            if msg:
-                self.m.popup_message(f'Added score: {new}, now {self.score}')
+            self._state['range'] = self.cfg['score']['range']
+            return
+
+        if self._state['score'] == 0 and new > 0:
+            self.range[0] = max(0, self.range[0] - 1)
+            self._state['range'] = [max(0, self.range[0] - 1), self.state]
+
+        self._state['score'] = max(self._state['score'] + new, 0)
+        if msg:
+            self.m.popup_message(f'Added score: {new}, now {self.score}')
 
     @visible
     def nothing(self, msg=True):
@@ -381,7 +391,7 @@ class Mackerel(plugin.PluginBase):
         cfg = self.cfg['score']
         if not pic.eval(cfg['condition']):
             return
-        left, right = cfg['range']
+        left, right = self.state.range
         prob = max(0.0, min(1.0, (self.state.score - left) / (right - left)))
         if random.random() <= prob:
             self.state.add_score(-1, msg=False)
