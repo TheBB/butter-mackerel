@@ -349,8 +349,8 @@ class MackerelState:
             return
 
         if self._state['score'] == 0 and new > 0:
-            self.range[0] = max(0, self.range[0] - 1)
-            self._state['range'] = [max(0, self.range[0] - 1), self.state]
+            a, b = self.range
+            self._state['range'] = [max(0, a - 1), b]
 
         self._state['score'] = max(self._state['score'] + new, 0)
         if msg:
