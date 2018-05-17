@@ -111,7 +111,7 @@ class MackerelSlideshow(Slideshow):
         self.update_msg()
 
     def _game_callback(self, m, winner, npts):
-        self.state.add_score(-20, msg=False)
+        self.state.add_score(-20, msg=False, actual=False)
         if winner == 0:
             self.state.game_against(m, npts)
         else:
@@ -119,7 +119,7 @@ class MackerelSlideshow(Slideshow):
 
     @bind('G')
     def thing(self, m):
-        self.state.add_score(20, msg=False)
+        self.state.add_score(20, msg=False, actual=False)
         BestOfGame(self.state, m, functools.partial(self._game_callback, m))
 
 
@@ -341,14 +341,14 @@ class MackerelState:
             self.m.popup_message(f'Added permission: {new}, now {self.permissions}')
 
     @visible
-    def add_score(self, new, msg=True):
+    def add_score(self, new, msg=True, actual=True):
         if self._state['score'] == 0 and new < 0:
             self.add_permissions(msg=msg)
             self._state['score'] = self.cfg['score']['base']
             self._state['range'] = self.cfg['score']['range']
             return
 
-        if self._state['score'] == 0 and new > 0:
+        if self._state['score'] == 0 and new > 0 and actual:
             a, b = self.range
             self._state['range'] = [max(0, a - 1), b]
 
