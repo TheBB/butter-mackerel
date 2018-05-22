@@ -335,6 +335,11 @@ class MackerelState:
         self.event('game-against', m, npts=npts)
 
     @visible
+    def sub_range(self, reduction=1, msg=True):
+        a, b = self.range
+        self._state['range'] = [max(0, a - reduction), b]
+
+    @visible
     def add_permissions(self, new=1, msg=True):
         self._state['permissions'] = min(self.permissions + new, 1)
         if msg:
@@ -349,8 +354,7 @@ class MackerelState:
             return
 
         if self._state['score'] == 0 and new > 0 and actual:
-            a, b = self.range
-            self._state['range'] = [max(0, a - 1), b]
+            self.sub_range(1, msg=False)
 
         self._state['score'] = max(self._state['score'] + new, 0)
         if msg:
