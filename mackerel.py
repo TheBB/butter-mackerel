@@ -69,7 +69,7 @@ class MackerelSlideshow(Slideshow):
     def update_msg(self):
         s = self.state
         p = inflect.engine()
-        msg = f'{s.permissions} {p.plural("permission", s.permissions)}, score: {s.score}'
+        msg = f'{s.permissions} {p.plural("permission", s.permissions)}, score: {s.score}, coins: {s.coins}'
         if s.nqueued:
             msg += f' | {s.nqueued} {p.plural("event", s.nqueued)} queued'
 
@@ -121,6 +121,17 @@ class MackerelSlideshow(Slideshow):
     def thing(self, m):
         self.state.add_score(20, msg=False, actual=False)
         BestOfGame(self.state, m, functools.partial(self._game_callback, m))
+
+    @bind('B')
+    def shop(self, m):
+        items = {key: val for key, val in zip('abcdefghijklmnopqrstuvwxyz', self.state.cfg['shop'])}
+        text = [f"{key.upper()}: {val['text']} ({val['price']})" for key, val in items.items()]
+        retval = self.m.popup_message(text).lower()
+        if retval not in items:
+            return
+        if retval in items:
+            self.state.buy(items[retval])
+        self.update_msg()
 
 
 del MackerelSlideshow.keymap['P']
@@ -277,6 +288,11 @@ class MackerelState:
         globs.update(self._globals)
         exec(code, globs, self._state)
 
+    def evaluate(self, code, globs=None):
+        globs = dict(globs or {})
+        globs.update(self._globals)
+        return eval(code, globs, self._state)
+
     def tick(self, live_duration=None):
         now = datetime.now()
         dt = (now - self._state['last_tick']).total_seconds()
@@ -318,8 +334,8 @@ class MackerelState:
         return len(self._state['queue'])
 
     @property
-    def range(self):
-        return self._state['range']
+    def coins(self):
+        return self._state['coins']
 
     def mas(self, m, physical=False):
         self.add_permissions(-1, msg=False)
@@ -335,11 +351,6 @@ class MackerelState:
         self.event('game-against', m, npts=npts)
 
     @visible
-    def sub_range(self, reduction=1, msg=True):
-        a, b = self.range
-        self._state['range'] = [max(0, a - reduction), b]
-
-    @visible
     def add_permissions(self, new=1, msg=True):
         self._state['permissions'] = min(self.permissions + new, 1)
         if msg:
@@ -350,15 +361,21 @@ class MackerelState:
         if self._state['score'] == 0 and new < 0:
             self.add_permissions(msg=msg)
             self._state['score'] = self.cfg['score']['base']
-            self._state['range'] = self.cfg['score']['range']
             return
-
-        if self._state['score'] == 0 and new > 0 and actual:
-            self.sub_range(1, msg=False)
 
         self._state['score'] = max(self._state['score'] + new, 0)
         if msg:
             self.m.popup_message(f'Added score: {new}, now {self.score}')
+
+    @visible
+    def add_coins(self, new, msg=True):
+        self._state['coins'] += new
+
+    def buy(self, item):
+        if self.coins < item['price']:
+            return
+        self._state['coins'] = self.coins - item['price']
+        self.execute(item['event'])
 
     @visible
     def nothing(self, msg=True):
@@ -389,16 +406,8 @@ class Mackerel(plugin.PluginBase):
         return functools.partial(MackerelSlideshow, self.state, self.picker)
 
     def add_failed(self, filename, reason):
-        pass
+        if reason == 'collision':
+            self.state.event('add-collision', None, msg=False)
 
     def add_succeeded(self, pic):
-        cfg = self.cfg['score']
-        if not pic.eval(cfg['condition']):
-            return
-        left, right = self.state.range
-        prob = max(0.0, min(1.0, (self.state.score - left) / (right - left)))
-        if random.random() <= prob:
-            self.state.add_score(-1, msg=False)
-            print(f'Succeeded at {prob*100:.02f}%, now {self.state.score}')
-        else:
-            print(f'Failed at {prob*100:.02f}%, still {self.state.score}')
+        self.state.add_coins(pic.eval(self.cfg['add']), msg=False)
