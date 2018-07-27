@@ -150,7 +150,7 @@ class BestOfGame(FromPicker):
         self.max_pts = self.cfg['maxpts']
         self.pts = state.game_state
         self.prev_winner = None
-        self.speed, self.bias, self.add_bias = 0.55, 0.0, 0.0
+        self.speed, self.bias = 0.55, 0.0
 
         self.update_msg()
 
@@ -165,7 +165,6 @@ class BestOfGame(FromPicker):
     def update_msg(self):
         self.message = (
             '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts)) +
-            f'     ({self.add_bias:.2f})'
             f'     ({self.state.score})'
         )
 
@@ -200,7 +199,7 @@ class BestOfGame(FromPicker):
             return
 
         self.update_msg()
-        bias = self.bias + self.add_bias
+        bias = self.bias
         prob_win = conv(p(bias) if cur == 0 else 1 - p(bias))
         win = random.random() <= prob_win
         pic = self.picker.get()
