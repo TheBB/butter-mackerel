@@ -111,7 +111,6 @@ class MackerelSlideshow(Slideshow):
         self.update_msg()
 
     def _game_callback(self, m, winner, npts):
-        self.state.add_score(-20, msg=False, actual=False)
         if winner == 0:
             self.state.game_against(m, npts)
         else:
@@ -119,8 +118,7 @@ class MackerelSlideshow(Slideshow):
 
     @bind('G')
     def thing(self, m):
-        self.state.add_score(20, msg=False, actual=False)
-        BestOfGame(self.state, m, functools.partial(self._game_callback, m))
+        BestOfGame(self.state, m)
 
     @bind('B')
     def shop(self, m):
@@ -140,30 +138,35 @@ del MackerelSlideshow.keymap['c']
 
 class BestOfGame(FromPicker):
 
-    def __init__(self, state, m, callback, start=(0,0)):
-        self.callback = callback
+    def __init__(self, state, m):
         cfg = state.cfg['bestof']
         super().__init__(m, m.db.picker(cfg['picker']))
 
+        self.state = state
         self.trigger = lambda pic: pic.eval(cfg['trigger'])
         self.value = lambda pic: pic.eval(cfg['value'])
         self.cfg = cfg
 
         self.max_pts = self.cfg['maxpts']
-        self.pts = [[0] * len(self.max_pts) for _ in range(2)]
-        self.pts[0][-1] = start[0]
-        self.pts[1][-1] = start[1]
-        self.current = random.choice([0,1])
+        self.pts = state.game_state
         self.prev_winner = None
         self.speed, self.bias, self.add_bias = 0.55, 0.0, 0.0
-        self.done = False
 
         self.update_msg()
+
+    @property
+    def current(self):
+        return self.state.game_current
+
+    @current.setter
+    def current(self, value):
+        self.state.game_current = value
 
     def update_msg(self):
         self.message = (
             '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts)) +
             f'     ({self.add_bias:.2f})'
+            f'     ({self.state.score})'
         )
 
     def add_pts(self, winner, npts):
@@ -173,17 +176,17 @@ class BestOfGame(FromPicker):
                 if i > 0:
                     w_pts[i-1] = l_pts[i-1] = 0
                 w_pts[i] += 1
+                if i == len(self.max_pts) - 1:
+                    self.state.add_score(-1 if winner == 1 else 0, msg=False)
                 if w_pts[i] != self.max_pts[i]:
                     break
             if w_pts[-1] == self.max_pts[-1]:
-                break
+                w_pts[:] = [0] * len(w_pts)
+                l_pts[:] = [0] * len(l_pts)
+                self.state.add_score(-1, msg=False)
 
-    def win(self, m, winner, npts):
-        e = inflect.engine()
-        msg = '{} win with {} {}'.format('We' if winner == 0 else 'You', npts, e.plural('point', npts))
-        m.popup_message(msg)
-        self.callback(winner, npts)
-        self.done = True
+    @bind('G')
+    def exit(self, m):
         m.pop(self)
 
     @bind()
@@ -213,10 +216,6 @@ class BestOfGame(FromPicker):
         npts = self.value(pic)
         self.add_pts(cur, npts)
         self.update_msg()
-
-        if self.pts[cur][-1] == self.max_pts[-1]:
-            self.win(m, cur, self.pts[cur][-1] - self.pts[1-cur][-1])
-            return
 
         sign = 1 if cur == 0 else -1
         if self.prev_winner != cur:
@@ -322,6 +321,18 @@ class MackerelState:
         self.execute(event, kwargs)
 
     @property
+    def game_state(self):
+        return self._state['game_state']
+
+    @property
+    def game_current(self):
+        return self._state['game_current']
+
+    @game_current.setter
+    def game_current(self, value):
+        self._state['game_current'] = value
+
+    @property
     def permissions(self):
         return self._state['permissions']
 
@@ -357,7 +368,7 @@ class MackerelState:
             self.m.popup_message(f'Added permission: {new}, now {self.permissions}')
 
     @visible
-    def add_score(self, new, msg=True, actual=True):
+    def add_score(self, new, msg=True):
         if self._state['score'] == 0 and new < 0:
             self.add_permissions(msg=msg)
             self._state['score'] = self.cfg['score']['base']
