@@ -110,12 +110,6 @@ class MackerelSlideshow(Slideshow):
         self.state.mas(m, physical=True)
         self.update_msg()
 
-    def _game_callback(self, m, winner, npts):
-        if winner == 0:
-            self.state.game_against(m, npts)
-        else:
-            self.state.game_for(m, npts)
-
     @bind('G')
     def thing(self, m):
         BestOfGame(self.state, m)
@@ -165,7 +159,9 @@ class BestOfGame(FromPicker):
     def update_msg(self):
         self.message = (
             '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts)) +
-            f'     ({self.state.score})'
+            '  ·  ' + str(self.state.game_count) + '/' + str(self.cfg['cycles']) +
+            f'     ({self.state.score})' +
+            (' (we)' if self.current == 0 else ' (you)')
         )
 
     def add_pts(self, winner, npts):
@@ -175,14 +171,13 @@ class BestOfGame(FromPicker):
                 if i > 0:
                     w_pts[i-1] = l_pts[i-1] = 0
                 w_pts[i] += 1
-                if i == len(self.max_pts) - 1:
-                    self.state.add_score(-1 if winner == 1 else 0, msg=False)
                 if w_pts[i] != self.max_pts[i]:
                     break
             if w_pts[-1] == self.max_pts[-1]:
+                self.state.add_score(-1 if winner == 1 else 1, msg=False)
+                self.state.complete_game()
                 w_pts[:] = [0] * len(w_pts)
                 l_pts[:] = [0] * len(l_pts)
-                self.state.add_score(-1, msg=False)
 
     @bind('G')
     def exit(self, m):
@@ -257,6 +252,10 @@ class MackerelState:
         with open(local, 'rb') as f:
             self._state = pickle.load(f)
 
+        if False:
+            self._state['game_count'] = 0
+            self._state['score'] = 25
+
         self._loader = loader
         globs = {key: getattr(self, key) for key in dir(self)}
         self._globals = {
@@ -319,6 +318,16 @@ class MackerelState:
         print('Event:', name, event, kwargs)
         self.execute(event, kwargs)
 
+    def complete_game(self):
+        self._state['game_count'] += 1
+        if self._state['game_count'] == self.cfg['bestof']['cycles']:
+            self.add_score(-1, msg=False)
+            self._state['game_count'] = 0
+
+    @property
+    def game_count(self):
+        return self._state['game_count']
+
     @property
     def game_state(self):
         return self._state['game_state']
@@ -354,12 +363,6 @@ class MackerelState:
         else:
             self.event('illegal-mas', m)
 
-    def game_for(self, m, npts):
-        self.event('game-for', m, npts=npts)
-
-    def game_against(self, m, npts):
-        self.event('game-against', m, npts=npts)
-
     @visible
     def add_permissions(self, new=1, msg=True):
         self._state['permissions'] = min(self.permissions + new, 1)
@@ -368,11 +371,6 @@ class MackerelState:
 
     @visible
     def add_score(self, new, msg=True):
-        if self._state['score'] == 0 and new < 0:
-            self.add_permissions(msg=msg)
-            self._state['score'] = self.cfg['score']['base']
-            return
-
         self._state['score'] = max(self._state['score'] + new, 0)
         if msg:
             self.m.popup_message(f'Added score: {new}, now {self.score}')
