@@ -66,12 +66,14 @@ class MackerelSlideshow(Slideshow):
     def make_current(self, m):
         self.update_msg()
 
-    def update_msg(self):
+    def update_msg(self, picid=None):
         s = self.state
         p = inflect.engine()
         msg = f'{s.permissions} {p.plural("permission", s.permissions)}, score: {s.score}, coins: {s.coins}'
         if s.nqueued:
             msg += f' | {s.nqueued} {p.plural("event", s.nqueued)} queued'
+        if picid is not None:
+            msg += f' ({picid:08})'
 
         self.message = msg
 
@@ -98,7 +100,7 @@ class MackerelSlideshow(Slideshow):
         self.state.tick(dt)
         if self.initialized:
             self.state.pop(m)
-        self.update_msg()
+        self.update_msg(pic.id)
 
     @bind('m')
     def mas(self, m):
@@ -252,10 +254,6 @@ class MackerelState:
         with open(local, 'rb') as f:
             self._state = pickle.load(f)
 
-        if False:
-            self._state['game_count'] = 0
-            self._state['score'] = 25
-
         self._loader = loader
         globs = {key: getattr(self, key) for key in dir(self)}
         self._globals = {
@@ -339,6 +337,9 @@ class MackerelState:
     @game_current.setter
     def game_current(self, value):
         self._state['game_current'] = value
+
+    def game_done(self):
+        return self._state['game_count'] == 0
 
     @property
     def permissions(self):
