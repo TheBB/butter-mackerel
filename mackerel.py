@@ -158,13 +158,16 @@ class BestOfGame(FromPicker):
     def current(self, value):
         self.state.game_current = value
 
-    def update_msg(self):
-        self.message = (
+    def update_msg(self, picid=None):
+        msg = (
             '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts)) +
             '  ·  ' + str(self.state.game_count) + '/' + str(self.cfg['cycles']) +
             f'     ({self.state.score})' +
             (' (we)' if self.current == 0 else ' (you)')
         )
+        if picid is not None:
+            msg += f' ({picid:08})'
+        self.message = msg
 
     def add_pts(self, winner, npts):
         l_pts, w_pts = self.pts[1 - winner], self.pts[winner]
@@ -195,7 +198,6 @@ class BestOfGame(FromPicker):
         if dt and dt.total_seconds() < self.cfg['time']:
             return
 
-        self.update_msg()
         bias = self.bias
         prob_win = conv(p(bias) if cur == 0 else 1 - p(bias))
         win = random.random() <= prob_win
@@ -203,7 +205,8 @@ class BestOfGame(FromPicker):
         while self.trigger(pic) != win:
             pic = self.picker.get()
 
-        pic = super().pic(m, set_msg=False, pic=pic)
+        self.update_msg(pic.id)
+        super().pic(m, set_msg=False, pic=pic)
 
         if not win:
             self.current = 1 - cur
@@ -211,7 +214,7 @@ class BestOfGame(FromPicker):
 
         npts = self.value(pic)
         self.add_pts(cur, npts)
-        self.update_msg()
+        self.update_msg(pic.id)
 
         sign = 1 if cur == 0 else -1
         if self.prev_winner != cur:
@@ -232,7 +235,7 @@ class BestOfGame(FromPicker):
         msg.append(f'{100*p_t:.2f}% – {100*(1-p_t):.2f}%')
 
         self.prev_winner = cur
-        self.update_msg()
+        self.update_msg(pic.id)
         m.popup_message(msg)
 
 
@@ -369,6 +372,7 @@ class MackerelState:
         self._state['permissions'] = min(self.permissions + new, 1)
         if msg:
             self.m.popup_message(f'Added permission: {new}, now {self.permissions}')
+        return True
 
     @visible
     def add_score(self, new, msg=True):
