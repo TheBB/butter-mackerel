@@ -61,6 +61,7 @@ class MackerelSlideshow(Slideshow):
         super().__init__(m, picker)
         self.update_msg()
         self.initialized = True
+        self.state.pop(m)
         self.last_tick = datetime.now()
 
     def make_current(self, m):
@@ -140,13 +141,16 @@ class BestOfGame(FromPicker):
 
         self.state = state
         self.trigger = lambda pic: pic.eval(cfg['trigger'])
-        self.value = lambda pic: pic.eval(cfg['value'])
+        self.multiplier = lambda pic: pic.eval(cfg['multiplier'])
+        self.prob_reject = cfg['rejection_prob']
         self.cfg = cfg
+
+        self.count = 0
 
         self.max_pts = self.cfg['maxpts']
         self.pts = state.game_state
-        self.prev_winner = None
-        self.speed, self.bias = 0.55, 0.0
+        # self.prev_winner = None
+        # self.speed, self.bias = 0.55, 0.0
 
         self.update_msg()
 
@@ -159,11 +163,12 @@ class BestOfGame(FromPicker):
         self.state.game_current = value
 
     def update_msg(self, picid=None):
+        player = ['we', 'you'][self.current]
         msg = (
             '  ·  '.join(f'{we}–{you}' for we, you in zip(*self.pts)) +
             '  ·  ' + str(self.state.game_count) + '/' + str(self.cfg['cycles']) +
             f'     ({self.state.score})' +
-            (' (we)' if self.current == 0 else ' (you)')
+            f' ({self.count} · {player})'
         )
         if picid is not None:
             msg += f' ({picid:08})'
@@ -191,52 +196,31 @@ class BestOfGame(FromPicker):
     @bind()
     @timed('dt')
     def pic(self, m, dt):
-        cur = self.current
-        p = lambda b: max(min((1.020**b) / (1.020**b + 1), 0.93), 0.07)
-        conv = lambda p: self.speed * p
-
         if dt and dt.total_seconds() < self.cfg['time']:
             return
 
-        bias = self.bias
-        prob_win = conv(p(bias) if cur == 0 else 1 - p(bias))
-        win = random.random() <= prob_win
+        self.current = 1 - self.current
+        cur = self.current
+
         pic = self.picker.get()
-        while self.trigger(pic) != win:
+        while not self.trigger(pic) and random.random() <= self.prob_reject:
             pic = self.picker.get()
 
-        self.update_msg(pic.id)
+        self.count += 1
         super().pic(m, set_msg=False, pic=pic)
 
-        if not win:
-            self.current = 1 - cur
-            return
+        if self.trigger(pic):
+            npts = self.count * self.multiplier(pic)
+            self.add_pts(cur, npts)
+            self.update_msg(pic.id)
+            e = inflect.engine()
+            msg = ['{} {} for {}'.format(npts, e.plural('point', npts), 'us' if cur == 0 else 'you')]
+            m.popup_message(msg)
+            self.count = 0
+            self.current = 1 - self.current
 
-        npts = self.value(pic)
-        self.add_pts(cur, npts)
-        self.update_msg(pic.id)
-
-        sign = 1 if cur == 0 else -1
-        if self.prev_winner != cur:
-            self.bias = 0.0
         else:
-            self.bias += sign * min(npts, self.cfg['threshold'])
-
-        e = inflect.engine()
-        msg = ['{} {} for {}'.format(npts, e.plural('point', npts), 'us' if cur == 0 else 'you')]
-
-        p_t, p_f = conv(p(self.bias)), conv(1 - p(self.bias))
-        denom = p_t + p_f - p_t * p_f
-        if cur == 0:
-            p_t /= denom
-        else:
-            p_t = 1 - p_f / denom
-        p_f = 1 - p_t
-        msg.append(f'{100*p_t:.2f}% – {100*(1-p_t):.2f}%')
-
-        self.prev_winner = cur
-        self.update_msg(pic.id)
-        m.popup_message(msg)
+            self.update_msg(pic.id)
 
 
 def visible(func):
@@ -249,6 +233,7 @@ class MackerelState:
     def __init__(self, loader):
         self.cfg = loader.cfg['mackerel']
         local = path.join(loader.path, 'mackerel.state')
+        self._live = False
 
         if loader.remote:
             remote = path.join(loader.remote, 'mackerel.state')
@@ -281,35 +266,48 @@ class MackerelState:
             remote = path.join(self._loader.remote, 'mackerel.state')
             rsync_file(local, remote)
 
+    def update(self):
+        if hasattr(self, 'm'):
+            self.m.blur = self._state['blur']
+
     def execute(self, code, globs=None):
         globs = dict(globs or {})
         globs.update(self._globals)
         exec(code, globs, self._state)
+        self.update()
 
     def evaluate(self, code, globs=None):
         globs = dict(globs or {})
         globs.update(self._globals)
-        return eval(code, globs, self._state)
+        retval = eval(code, globs, self._state)
+        self.update()
+        return retval
 
     def tick(self, live_duration=None):
         now = datetime.now()
-        dt = (now - self._state['last_tick']).total_seconds()
+        dt_long = (now - self._state['last_tick']).total_seconds()
+        dt_short = dt_long if self._live else 0.0
+        self._live = True
+
         self._state['last_tick'] = now
 
-        scale = self.cfg['tick']['rate'] / sum(freq for freq, _ in self.cfg['tick']['events'])
-        scale *= dt / 24 / 60 / 60
+        scale_long = self.cfg['tick']['rate'] * dt_long / 24 / 60 / 60
+        scale_short = self.cfg['tick']['rate'] * dt_short / 24 / 60 / 60
 
         events = []
         for rate, event in self.cfg['tick']['events']:
-            events += [event] * np.random.poisson(rate * scale)
+            events += [event] * np.random.poisson(rate * scale_long)
+        for rate, event in self.cfg['tick']['live-events']:
+            events += [event] * np.random.poisson(rate * scale_short)
         random.shuffle(events)
         self._state['queue'].extend(events)
 
     def pop(self, m):
+        self.update()
         if not self._state['queue']:
             return
         event = self._state['queue'].pop(0)
-        self.m = m
+        m.blur = self._state['blur']
         self.execute(event)
 
     def event(self, name, m, **kwargs):
