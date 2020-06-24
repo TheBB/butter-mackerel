@@ -103,6 +103,9 @@ class MackerelSlideshow(Slideshow):
             self.state.pop(m)
         self.update_msg(pic.id)
 
+        if random.random() < self.state.cfg['flash']['prob'] and pic.is_still:
+            m.flash(random.choice(self.state.cfg['flash']['messages']))
+
     @bind('m')
     def mas(self, m):
         self.state.mas(m, physical=False)
